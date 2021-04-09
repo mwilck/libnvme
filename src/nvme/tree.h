@@ -700,7 +700,7 @@ int nvme_ctrl_disconnect(nvme_ctrl_t c);
  *
  * Return: 
  */
-nvme_ctrl_t nvme_scan_ctrl(const char *name);
+nvme_ctrl_t nvme_scan_ctrl(nvme_root_t r, const char *name);
 
 /**
  * nvme_free_ctrl() -
@@ -751,7 +751,7 @@ nvme_root_t nvme_scan_filter(nvme_scan_filter_t f);
  *
  * Return: 
  */
-nvme_root_t nvme_scan();
+nvme_root_t nvme_scan(void);
 
 /**
  * nvme_refresh_topology() -

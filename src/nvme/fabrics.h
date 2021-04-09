@@ -69,11 +69,12 @@ int nvmf_add_ctrl_opts(struct nvme_fabrics_config *cfg);
 
 /**
  * nvmf_add_ctrl() -
+ * @r:
  * @cfg:
  *
  * Return:
  */
-nvme_ctrl_t nvmf_add_ctrl(struct nvme_fabrics_config *cfg);
+nvme_ctrl_t nvmf_add_ctrl(nvme_root_t r, struct nvme_fabrics_config *cfg);
 
 /**
  * nvmf_get_discovery_log() -
@@ -111,13 +112,15 @@ char *nvmf_hostid_from_file();
 
 /**
  * nvmf_connect_disc_entry() -
+ * @r:
  * @e:
  * @defcfg:
  * @discover:
  *
  * Return: An 
  */
-nvme_ctrl_t nvmf_connect_disc_entry(struct nvmf_disc_log_entry *e,
+nvme_ctrl_t nvmf_connect_disc_entry(nvme_root_t r,
+	struct nvmf_disc_log_entry *e,
 	const struct nvme_fabrics_config *defcfg, bool *discover);
 
 #endif /* _LIBNVME_FABRICS_H */
