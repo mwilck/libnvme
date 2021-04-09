@@ -711,6 +711,15 @@ int nvme_ctrl_disconnect(nvme_ctrl_t c);
 nvme_ctrl_t nvme_scan_ctrl(nvme_root_t r, const char *name);
 
 /**
+ * nvme_init_ctrl() -
+ * @c:
+ * @instance:
+ *
+ * Return: 
+ */
+int nvme_init_ctrl(nvme_ctrl_t c, int instance);
+
+/**
  * nvme_free_ctrl() -
  * @c:
  */
