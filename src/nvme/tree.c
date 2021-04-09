@@ -96,7 +96,6 @@ struct nvme_ctrl {
 	char *serial;
 	char *sqsize;
 	char *transport;
-	char *subsysnqn;
 	char *traddr;
 	char *trsvcid;
 	char *host_traddr;
@@ -550,7 +549,7 @@ const char *nvme_ctrl_get_sysfs_dir(nvme_ctrl_t c)
 
 const char *nvme_ctrl_get_subsysnqn(nvme_ctrl_t c)
 {
-	return c->subsysnqn;
+	return c->s->subsysnqn;
 }
 
 const char *nvme_ctrl_get_address(nvme_ctrl_t c)
@@ -613,6 +612,16 @@ const char *nvme_ctrl_get_host_traddr(nvme_ctrl_t c)
 	return c->host_traddr;
 }
 
+const char *nvme_ctrl_get_hostnqn(nvme_ctrl_t c)
+{
+	return c->s->h->hostnqn;
+}
+
+const char *nvme_ctrl_get_hostid(nvme_ctrl_t c)
+{
+	return c->s->h->hostid;
+}
+
 int nvme_ctrl_identify(nvme_ctrl_t c, struct nvme_id_ctrl *id)
 {
 	return nvme_identify_ctrl(nvme_ctrl_get_fd(c), id);
@@ -666,7 +675,6 @@ void nvme_free_ctrl(nvme_ctrl_t c)
 	close(c->fd);
 	free(c->name);
 	free(c->sysfs_dir);
-	free(c->subsysnqn);
 	free(c->address);
 	free(c->traddr);
 	if (c->trsvcid)
@@ -812,7 +820,13 @@ int nvme_init_ctrl(nvme_ctrl_t c, int instance)
 		return -1;
 	}
 	closedir(d);
-
+	c->address = nvme_get_attr(path, "address");
+	if (!c->address) {
+		free(path);
+		free(name);
+		errno = -ENXIO;
+		return -1;
+	}
 	ret = __nvme_ctrl_init(c, path, name);
 	free(path);
 	free(name);

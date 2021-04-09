@@ -15,13 +15,6 @@
 
 /**
  * struct nvme_fabrics_config - Defines all linux nvme fabrics initiator options
- * @transport:		The fabric transport to use, either loop, fc, tcp, or rdma
- * @traddr:		Transport Address for the target, format specific to transport type
- * @trsvcid:		Transport Service Identifier, specific to the transport type
- * @nqn:		Target NVMe Qualified Name
- * @hostnqn:		Host NVMe Qualified Name
- * @host_traddr:	Host Transport Address
- * @hostid:		Host Identifier
  * @queue_size:		Number of IO queue entries
  * @nr_io_queues:	Number of controller IO queues to establish
  * @reconnect_delay:	Time between two consecutive reconnect attempts.
@@ -36,14 +29,6 @@
  * @data_digest:	Generate/verify data digest (TCP)
  */
 struct nvme_fabrics_config {
-	const char *transport;
-	const char *traddr;
-	const char *trsvcid;
-	const char *nqn;
-	const char *hostnqn;
-	const char *host_traddr;
-	const char *hostid;
-
 	int queue_size;
 	int nr_io_queues;
 	int reconnect_delay;
@@ -65,15 +50,16 @@ struct nvme_fabrics_config {
  *
  * Return:
  */
-int nvmf_add_ctrl_opts(struct nvme_fabrics_config *cfg);
+int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg);
 
 /**
  * nvmf_add_ctrl() -
+ * @c:
  * @cfg:
  *
  * Return:
  */
-nvme_ctrl_t nvmf_add_ctrl(nvme_root_t r, struct nvme_fabrics_config *cfg);
+int nvmf_add_ctrl(nvme_ctrl_t c, struct nvme_fabrics_config *cfg);
 
 /**
  * nvmf_get_discovery_log() -
