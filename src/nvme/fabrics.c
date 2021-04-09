@@ -86,27 +86,40 @@ static int add_argument(char **argstr, const char *tok, const char *arg)
 	return 0;
 }
 
-static int build_options(char **argstr, struct nvme_fabrics_config *cfg)
+static int build_options(nvme_ctrl_t c, char **argstr,
+			 struct nvme_fabrics_config *cfg)
 {
 	/* always specify nqn as first arg - this will init the string */
-	if (asprintf(argstr, "nqn=%s", cfg->nqn) < 0) {
+	if (asprintf(argstr, "nqn=%s",
+		     nvme_ctrl_get_subsysnqn(c)) < 0) {
 		errno = ENOMEM;
 		return -1;
 	}
 
 
-	if (add_argument(argstr, "transport", cfg->transport) ||
-	    add_argument(argstr, "traddr", cfg->traddr) ||
-	    add_argument(argstr, "host_traddr", cfg->host_traddr) ||
-	    add_argument(argstr, "trsvcid", cfg->trsvcid) ||
-	    add_argument(argstr, "hostnqn", cfg->hostnqn) ||
-	    add_argument(argstr, "hostid", cfg->hostid) ||
-	    add_int_argument(argstr, "nr_write_queues", cfg->nr_write_queues, false) ||
-	    add_int_argument(argstr, "nr_poll_queues", cfg->nr_poll_queues, false) ||
-	    add_int_argument(argstr, "reconnect_delay", cfg->reconnect_delay, false) ||
-	    add_int_argument(argstr, "ctrl_loss_tmo", cfg->ctrl_loss_tmo, false) ||
+	if (add_argument(argstr, "transport",
+			 nvme_ctrl_get_transport(c)) ||
+	    add_argument(argstr, "traddr",
+			 nvme_ctrl_get_traddr(c)) ||
+	    add_argument(argstr, "host_traddr",
+			 nvme_ctrl_get_host_traddr(c)) ||
+	    add_argument(argstr, "trsvcid",
+			 nvme_ctrl_get_trsvcid(c)) ||
+	    add_argument(argstr, "hostnqn",
+			 nvme_ctrl_get_hostnqn(c)) ||
+	    add_argument(argstr, "hostid",
+			 nvme_ctrl_get_hostid(c)) ||
+	    add_int_argument(argstr, "nr_write_queues",
+			     cfg->nr_write_queues, false) ||
+	    add_int_argument(argstr, "nr_poll_queues",
+			     cfg->nr_poll_queues, false) ||
+	    add_int_argument(argstr, "reconnect_delay",
+			     cfg->reconnect_delay, false) ||
+	    add_int_argument(argstr, "ctrl_loss_tmo",
+			     cfg->ctrl_loss_tmo, false) ||
 	    add_int_argument(argstr, "tos", cfg->tos, true) ||
-	    add_bool_argument(argstr, "duplicate_connect", cfg->duplicate_connect) ||
+	    add_bool_argument(argstr, "duplicate_connect",
+			      cfg->duplicate_connect) ||
 	    add_bool_argument(argstr, "disable_sqflow", cfg->disable_sqflow) ||
 	    add_bool_argument(argstr, "hdr_digest", cfg->hdr_digest) ||
 	    add_bool_argument(argstr, "data_digest", cfg->data_digest) ||
@@ -157,12 +170,12 @@ out_close:
 	return ret;
 }
 
-int nvmf_add_ctrl_opts(struct nvme_fabrics_config *cfg)
+int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
 {
 	char *argstr;
 	int ret;
 
-	ret = build_options(&argstr, cfg);
+	ret = build_options(c, &argstr, cfg);
 	if (ret)
 		return ret;
 
@@ -171,19 +184,15 @@ int nvmf_add_ctrl_opts(struct nvme_fabrics_config *cfg)
 	return ret;
 }
 
-nvme_ctrl_t nvmf_add_ctrl(nvme_root_t r, struct nvme_fabrics_config *cfg)
+int nvmf_add_ctrl(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
 {
-	char d[32] = { 0 };
 	int ret;
 
-	ret = nvmf_add_ctrl_opts(cfg);
+	ret = nvmf_add_ctrl_opts(c, cfg);
 	if (ret < 0)
-		return NULL;
+		return ret;
 
-	if (snprintf(d, sizeof(d), "nvme%d", ret) < 0)
-		return NULL;
-
-	return nvme_scan_ctrl(r, d);
+	return nvme_init_ctrl(c, ret);
 }
 
 nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
@@ -193,9 +202,9 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 {
 	struct nvme_fabrics_config cfg = { 0 };
 	char *transport, *traddr = NULL, *trsvcid = NULL;
-	nvme_root_t r = nvme_host_get_root(h);
 	nvme_subsystem_t s;
 	nvme_ctrl_t c;
+	int ret;
 
 	s = nvme_lookup_subsystem(h, e->subnqn);
 	if (!s) {
@@ -274,12 +283,14 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 	if (e->treq & NVMF_TREQ_DISABLE_SQFLOW)
 		cfg.disable_sqflow = true;
 
-	c = nvmf_add_ctrl(r, &cfg);
-	if (!c && errno == EINVAL && cfg.disable_sqflow) {
+	ret = nvmf_add_ctrl(c, &cfg);
+	if (ret < 0 && errno == EINVAL && cfg.disable_sqflow) {
 		errno = 0;
 		/* disable_sqflow is unrecognized option on older kernels */
 		cfg.disable_sqflow = false;
-		c = nvmf_add_ctrl(r, &cfg);
+		ret = nvmf_add_ctrl(c, &cfg);
+		if (ret < 0)
+			c = NULL;
 	}
 
 	return c;

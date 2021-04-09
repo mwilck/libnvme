@@ -77,6 +77,15 @@ nvme_host_t nvme_first_host(nvme_root_t r);
 nvme_host_t nvme_next_host(nvme_root_t r, nvme_host_t h);
 
 /**
+ * nvme_lookup_host() -
+ * @r:
+ *
+ * Return: 
+ */
+nvme_host_t nvme_lookup_host(nvme_root_t r, const char *hostnqn,
+			     const char *hostid);
+
+/**
  * nvme_host_get_root() -
  * @h:
  *
@@ -652,6 +661,22 @@ const char *nvme_ctrl_get_nqn(nvme_ctrl_t c);
  * Return: 
  */
 const char *nvme_ctrl_get_subsysnqn(nvme_ctrl_t c);
+
+/**
+ * nvme_ctrl_get_hostnqn() -
+ * @c:
+ *
+ * Return: 
+ */
+const char *nvme_ctrl_get_hostnqn(nvme_ctrl_t c);
+
+/**
+ * nvme_ctrl_get_hostid() -
+ * @c:
+ *
+ * Return: 
+ */
+const char *nvme_ctrl_get_hostid(nvme_ctrl_t c);
 
 /**
  * nvme_ctrl_get_subsystem() -

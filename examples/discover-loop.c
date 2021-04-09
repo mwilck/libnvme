@@ -48,22 +48,36 @@ int main()
 {
 	struct nvmf_discovery_log *log = NULL;
 	nvme_root_t r;
+	nvme_host_t h;
+	nvme_subsystem_t s;
 	nvme_ctrl_t c;
-	char *hnqn;
+	char *hnqn, *hid;
 	int ret;
 
 	struct nvme_fabrics_config cfg = {
-		.nqn = NVME_DISC_SUBSYS_NAME,
-		.transport = "loop",
 		.tos = -1,
 	};
 
 	r = nvme_scan();
-	hnqn = nvmf_hostnqn_from_file(),
-	cfg.hostnqn = hnqn;
-
-	c = nvmf_add_ctrl(r, &cfg);
+	hnqn = nvmf_hostnqn_from_file();
+	hid = nvmf_hostid_from_file();
+	h = nvme_lookup_host(r, hnqn, hid);
+	if (!h) {
+		fprintf(stderr, "Failed to allocated memory\n");
+		return ENOMEM;
+	}
+	s = nvme_lookup_subsystem(h, NVME_DISC_SUBSYS_NAME);
+	if (!s) {
+		fprintf(stderr, "Failed to allocate memory\n");
+		return ENOMEM;
+	}
+	c = nvme_lookup_ctrl(s, "loop", NULL, NULL, NULL);
 	if (!c) {
+		fprintf(stderr, "Failed to allocate memory\n");
+		return ENOMEM;
+	}
+	ret = nvmf_add_ctrl(c, &cfg);
+	if (ret < 0) {
 		fprintf(stderr, "no controller found\n");
 		return errno;
 	}
