@@ -27,7 +27,8 @@
 /* XXX: Make a place for private declarations */
 extern int nvme_set_attr(const char *dir, const char *attr, const char *value);
 
-void nvme_free_host(struct nvme_host *s);
+nvme_host_t nvme_default_host(nvme_root_t r);
+void nvme_free_host(struct nvme_host *h);
 void nvme_free_subsystem(struct nvme_subsystem *s);
 int nvme_subsystem_scan_namespace(struct nvme_subsystem *s, char *name);
 int nvme_scan_subsystem(struct nvme_host *h, char *name, nvme_scan_filter_t f);
@@ -130,23 +131,6 @@ static inline void nvme_free_dirents(struct dirent **d, int i)
 	while (i-- > 0)
 		free(d[i]);
 	free(d);
-}
-
-nvme_host_t nvme_default_host(nvme_root_t r)
-{
-	struct nvme_host *h = calloc(1, sizeof(*h));
-
-	if (!h) {
-		errno = ENOMEM;
-		return NULL;
-	}
-
-	list_head_init(&h->subsystems);
-	list_add(&r->hosts, &h->entry);
-	h->hostnqn = nvmf_hostnqn_from_file();
-	h->hostid = nvmf_hostid_from_file();
-	h->r = r;
-	return h;
 }
 
 static int nvme_scan_topology(struct nvme_root *r, nvme_scan_filter_t f)
@@ -311,6 +295,47 @@ void nvme_free_host(struct nvme_host *h)
 	if (h->hostid)
 		free(h->hostid);
 	free(h);
+}
+
+struct nvme_host *nvme_lookup_host(nvme_root_t r, const char *hostnqn,
+				   const char *hostid)
+{
+	struct nvme_host *h;
+
+	nvme_for_each_host(r, h) {
+		if (strcmp(h->hostnqn, hostnqn))
+			continue;
+		if (hostid &&
+		    strcmp(h->hostid, hostid))
+			continue;
+		return h;
+	}
+	h = calloc(1,sizeof(*h));
+	if (!h)
+		return NULL;
+	h->hostnqn = strdup(hostnqn);
+	if (hostid)
+		h->hostid = strdup(hostid);
+	list_head_init(&h->subsystems);
+	list_node_init(&h->entry);
+	h->r = r;
+	list_add(&r->hosts, &h->entry);
+
+	return h;
+}
+
+nvme_host_t nvme_default_host(nvme_root_t r)
+{
+	struct nvme_host *h;
+	char *hostnqn, *hostid;
+
+	hostnqn = nvmf_hostnqn_from_file();
+	hostid = nvmf_hostid_from_file();
+
+	h = nvme_lookup_host(r, hostnqn, hostid);
+	free(hostnqn);
+	free(hostid);
+	return h;
 }
 
 static int nvme_subsystem_scan_namespaces(struct nvme_subsystem *s)
