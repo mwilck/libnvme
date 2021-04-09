@@ -703,6 +703,7 @@ struct nvme_ctrl *nvme_lookup_ctrl(struct nvme_subsystem *s,
 	}
 	c = calloc(1, sizeof(*c));
 	c->fd = -1;
+	c->s = s;
 	list_head_init(&c->namespaces);
 	list_head_init(&c->paths);
 	list_node_init(&c->entry);
@@ -753,35 +754,23 @@ static int nvme_ctrl_scan_namespaces(struct nvme_ctrl *c)
 	return 0;
 }
 
-static nvme_ctrl_t __nvme_ctrl_alloc(const char *path, const char *name)
+static int __nvme_ctrl_init(nvme_ctrl_t c, const char *path, const char *name)
 {
 	DIR *d;
-	nvme_ctrl_t c;
-	char *addr, *a, *e;
-	char *traddr = NULL, *trsvcid = NULL, *host_traddr = NULL;
 
 	d = opendir(path);
-	if (!d)
-		return NULL;
-	closedir(d);
-
-	c = calloc(1, sizeof(*c));
-	if (!c) {
-		errno = ENOMEM;
-		return NULL;
+	if (!d) {
+		errno = ENODEV;
+		return -1;
 	}
+	closedir(d);
 
 	c->fd = nvme_open(name);
 	if (c->fd < 0)
-		goto free_ctrl;
+		return c->fd;
 
-	list_head_init(&c->namespaces);
-	list_head_init(&c->paths);
-	list_node_init(&c->entry);
 	c->name = strdup(name);
 	c->sysfs_dir = (char *)path;
-	c->subsysnqn = nvme_get_ctrl_attr(c, "subsysnqn");
-	c->address = nvme_get_ctrl_attr(c, "address");
 	c->firmware = nvme_get_ctrl_attr(c, "firmware_rev");
 	c->model = nvme_get_ctrl_attr(c, "model");
 	c->state = nvme_get_ctrl_attr(c, "state");
@@ -789,9 +778,25 @@ static nvme_ctrl_t __nvme_ctrl_alloc(const char *path, const char *name)
 	c->queue_count = nvme_get_ctrl_attr(c, "queue_count");
 	c->serial = nvme_get_ctrl_attr(c, "serial");
 	c->sqsize = nvme_get_ctrl_attr(c, "sqsize");
-	c->transport = nvme_get_ctrl_attr(c, "transport");
+	return 0;
+}
+
+static nvme_ctrl_t nvme_ctrl_alloc(nvme_subsystem_t s, const char *path,
+				   const char *name)
+{
+	nvme_ctrl_t c;
+	char *addr, *address, *a, *e;
+	char *transport, *traddr = NULL, *trsvcid = NULL, *host_traddr = NULL;
+	int ret;
+
+	transport = nvme_get_attr(path, "transport");
+	if (!transport) {
+		errno = ENXIO;
+		return NULL;
+	}
 	/* Parse 'address' string into components */
-	addr = strdup(c->address);
+	addr = nvme_get_attr(path, "address");
+	address = strdup(addr);
 	a = strtok_r(addr, ",", &e);
 	while (a && strlen(a)) {
 		if (!strncmp(a, "traddr=", 7))
@@ -802,56 +807,80 @@ static nvme_ctrl_t __nvme_ctrl_alloc(const char *path, const char *name)
 			host_traddr = a + 12;
 		a = strtok_r(NULL, ",", &e);
 	}
-	if (traddr)
-		c->traddr = strdup(traddr);
-	if (trsvcid)
-		c->trsvcid = strdup(trsvcid);
-	if (host_traddr)
-		c->host_traddr = strdup(host_traddr);
+
+	c = nvme_lookup_ctrl(s, transport, traddr, host_traddr, trsvcid);
 	free(addr);
-
-	return c;
-
-free_ctrl:
-	free(c);
-	return NULL;
+	if (!c) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	c->address = address;
+	ret = __nvme_ctrl_init(c, path, name);
+	return (ret < 0) ? NULL : c;
 }
 
-static nvme_ctrl_t nvme_ctrl_alloc(const char *sysfs, const char *name)
+nvme_ctrl_t nvme_scan_ctrl(nvme_root_t r, const char *name)
 {
-	nvme_ctrl_t c;
+	nvme_host_t h;
+	nvme_subsystem_t s;
 	char *path;
+	char *hostnqn, *hostid, *subsysnqn;
 	int ret;
 
-	ret = asprintf(&path, "%s/%s", sysfs, name);
+	ret = asprintf(&path, "%s/%s", nvme_ctrl_sysfs_dir, name);
 	if (ret < 0) {
 		errno = ENOMEM;
 		return NULL;
 	}
 
-	c = __nvme_ctrl_alloc(path, name);
-	if (!c)
-		free(path);
-	return c;
-}
+	hostnqn = nvme_get_attr(path, "hostnqn");
+	if (!hostnqn) {
+		errno = ENODEV;
+		return NULL;
+	}
+	hostid = nvme_get_attr(path, "hostid");
+	h = nvme_lookup_host(r, hostnqn, hostid);
+	if (!h) {
+		h = nvme_default_host(r);
+		if (!h) {
+			free(path);
+			errno = ENOMEM;
+			return NULL;
+		}
+	}
 
-nvme_ctrl_t nvme_scan_ctrl(const char *name)
-{
-	return nvme_ctrl_alloc(nvme_ctrl_sysfs_dir, name);
+	subsysnqn = nvme_get_attr(path, "subsysnqn");
+	if (!subsysnqn) {
+		free(path);
+		errno = ENXIO;
+		return NULL;
+	}
+	s = nvme_lookup_subsystem(h, subsysnqn);
+	if (!s) {
+		free(path);
+		errno = ENOMEM;
+		return NULL;
+	}
+	return nvme_ctrl_alloc(s, path, name);
 }
 
 int nvme_subsystem_scan_ctrl(struct nvme_subsystem *s, char *name)
 {
 	nvme_ctrl_t c;
+	char *path;
 
-	c = nvme_ctrl_alloc(s->sysfs_dir, name);
-	if (!c)
+	if (asprintf(&path, "%s/%s", s->sysfs_dir, name) < 0) {
+		errno = ENOMEM;
 		return -1;
+	}
 
-	c->s = s;
+	c = nvme_ctrl_alloc(s, path, name);
+	if (!c) {
+		free(path);
+		return -1;
+	}
 	nvme_ctrl_scan_namespaces(c);
 	nvme_ctrl_scan_paths(c);
-	list_add(&s->ctrls, &c->entry);
 
 	return 0;
 }

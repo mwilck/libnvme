@@ -171,7 +171,7 @@ int nvmf_add_ctrl_opts(struct nvme_fabrics_config *cfg)
 	return ret;
 }
 
-nvme_ctrl_t nvmf_add_ctrl(struct nvme_fabrics_config *cfg)
+nvme_ctrl_t nvmf_add_ctrl(nvme_root_t r, struct nvme_fabrics_config *cfg)
 {
 	char d[32] = { 0 };
 	int ret;
@@ -183,10 +183,11 @@ nvme_ctrl_t nvmf_add_ctrl(struct nvme_fabrics_config *cfg)
 	if (snprintf(d, sizeof(d), "nvme%d", ret) < 0)
 		return NULL;
 
-	return nvme_scan_ctrl(d);
+	return nvme_scan_ctrl(r, d);
 }
 
-nvme_ctrl_t nvmf_connect_disc_entry(struct nvmf_disc_log_entry *e,
+nvme_ctrl_t nvmf_connect_disc_entry(nvme_root_t r,
+				    struct nvmf_disc_log_entry *e,
 				    const struct nvme_fabrics_config *defcfg,
 				    bool *discover)
 {
@@ -256,12 +257,12 @@ nvme_ctrl_t nvmf_connect_disc_entry(struct nvmf_disc_log_entry *e,
 	if (e->treq & NVMF_TREQ_DISABLE_SQFLOW)
 		cfg.disable_sqflow = true;
 
-	c = nvmf_add_ctrl(&cfg);
+	c = nvmf_add_ctrl(r, &cfg);
 	if (!c && errno == EINVAL && cfg.disable_sqflow) {
 		errno = 0;
 		/* disable_sqflow is unrecognized option on older kernels */
 		cfg.disable_sqflow = false;
-		c = nvmf_add_ctrl(&cfg);
+		c = nvmf_add_ctrl(r, &cfg);
 	}
 
 	return c;

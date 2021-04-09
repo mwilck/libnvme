@@ -47,6 +47,7 @@ static void print_discover_log(struct nvmf_discovery_log *log)
 int main()
 {
 	struct nvmf_discovery_log *log = NULL;
+	nvme_root_t r;
 	nvme_ctrl_t c;
 	char *hnqn;
 	int ret;
@@ -57,10 +58,11 @@ int main()
 		.tos = -1,
 	};
 
+	r = nvme_scan();
 	hnqn = nvmf_hostnqn_from_file(),
 	cfg.hostnqn = hnqn;
 
-	c = nvmf_add_ctrl(&cfg);
+	c = nvmf_add_ctrl(r, &cfg);
 	if (!c) {
 		fprintf(stderr, "no controller found\n");
 		return errno;
@@ -75,6 +77,7 @@ int main()
 	else
 		print_discover_log(log);
 
+	nvme_free_tree(r);
 	free(hnqn);
 	return 0;
 }
