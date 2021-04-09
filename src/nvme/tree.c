@@ -679,6 +679,51 @@ void nvme_free_ctrl(nvme_ctrl_t c)
 	free(c);
 }
 
+struct nvme_ctrl *nvme_lookup_ctrl(struct nvme_subsystem *s,
+				   const char *transport, const char *traddr,
+				   const char *host_traddr, const char *trsvcid)
+{
+	struct nvme_ctrl *c;
+
+	if (!transport)
+		return NULL;
+	nvme_subsystem_for_each_ctrl(s, c) {
+		if (strcmp(c->transport, transport))
+			continue;
+		if (traddr &&
+		    strcmp(c->traddr, traddr))
+			continue;
+		if (host_traddr &&
+		    strcmp(c->host_traddr, host_traddr))
+			continue;
+		if (trsvcid &&
+		    strcmp(c->trsvcid, trsvcid))
+			continue;
+		return c;
+	}
+	c = calloc(1, sizeof(*c));
+	c->fd = -1;
+	list_head_init(&c->namespaces);
+	list_head_init(&c->paths);
+	list_node_init(&c->entry);
+	c->transport = strdup(transport);
+	if (traddr)
+		c->traddr = strdup(traddr);
+	else
+		c->traddr = strdup("none");
+	if (host_traddr)
+		c->host_traddr = strdup(host_traddr);
+	else
+		c->host_traddr = strdup("none");
+	if (trsvcid)
+		c->trsvcid = strdup(trsvcid);
+	else
+		c->trsvcid = strdup("none");
+
+	list_add(&s->ctrls, &c->entry);
+	return c;
+}
+
 static int nvme_ctrl_scan_paths(struct nvme_ctrl *c)
 {
 	struct dirent **paths;
