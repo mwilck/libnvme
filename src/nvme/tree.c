@@ -284,6 +284,28 @@ void nvme_free_subsystem(struct nvme_subsystem *s)
 	free(s);
 }
 
+struct nvme_subsystem *nvme_lookup_subsystem(struct nvme_host *h,
+					     const char *subsysnqn)
+{
+	struct nvme_subsystem *s;
+
+	nvme_for_each_subsystem(h, s) {
+		if (strcmp(s->subsysnqn, subsysnqn))
+			continue;
+		return s;
+	}
+	s = calloc(1, sizeof(*s));
+	if (!s)
+		return NULL;
+
+	s->h = h;
+	s->subsysnqn = strdup(subsysnqn);
+	list_head_init(&s->ctrls);
+	list_head_init(&s->namespaces);
+	list_add(&h->subsystems, &s->entry);
+	return s;
+}
+
 void nvme_free_host(struct nvme_host *h)
 {
 	struct nvme_subsystem *s, *_s;
@@ -373,26 +395,27 @@ int nvme_subsystem_scan_ctrls(struct nvme_subsystem *s)
 int nvme_scan_subsystem(struct nvme_host *h, char *name, nvme_scan_filter_t f)
 {
 	struct nvme_subsystem *s;
-	char *path;
+	char *path, *subsysnqn;
 	int ret;
 
 	ret = asprintf(&path, "%s/%s", nvme_subsys_sysfs_dir, name);
 	if (ret < 0)
 		return ret;
 
-	s = calloc(1, sizeof(*s));
+	subsysnqn = nvme_get_attr(path, "subsysnqn");
+	if (!subsysnqn) {
+		errno = ENODEV;
+		goto free_path;
+	}
+	s = nvme_lookup_subsystem(h, subsysnqn);
 	if (!s) {
+		free(subsysnqn);
 		errno = ENOMEM;
 		goto free_path;
 	}
-
-	s->h = h;
+	free(subsysnqn);
 	s->name = strdup(name);
 	s->sysfs_dir = path;
-	s->subsysnqn = nvme_get_subsys_attr(s, "subsysnqn");
-	list_head_init(&s->ctrls);
-	list_head_init(&s->namespaces);
-	list_add(&h->subsystems, &s->entry);
 
 	nvme_subsystem_scan_namespaces(s);
 	nvme_subsystem_scan_ctrls(s);
