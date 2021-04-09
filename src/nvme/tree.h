@@ -155,6 +155,21 @@ nvme_ctrl_t nvme_subsystem_first_ctrl(nvme_subsystem_t s);
 nvme_ctrl_t nvme_subsystem_next_ctrl(nvme_subsystem_t s, nvme_ctrl_t c);
 
 /**
+ * nvme_lookup_ctrl() -
+ * @s:
+ * @transport:
+ * @traddr:
+ * @host_traddr:
+ * @trsvcid:
+ *
+ * Return: 
+ */
+nvme_ctrl_t nvme_lookup_ctrl(nvme_subsystem_t s, const char *transport,
+			     const char *traddr, const char *host_traddr,
+			     const char *trsvcid);
+
+
+/**
  * nvme_subsystem_first_ns() -
  * @s:
  *
