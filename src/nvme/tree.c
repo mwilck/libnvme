@@ -786,6 +786,39 @@ static int __nvme_ctrl_init(nvme_ctrl_t c, const char *path, const char *name)
 	return 0;
 }
 
+int nvme_init_ctrl(nvme_ctrl_t c, int instance)
+{
+	char *path, *name;
+	DIR *d;
+	int ret;
+
+	ret = asprintf(&name, "nvme%d", instance);
+	if (ret < 0) {
+		errno = ENOMEM;
+		return -1;
+	}
+	ret = asprintf(&path, "%s/nvme%d", nvme_ctrl_sysfs_dir, instance);
+	if (ret < 0) {
+		free(name);
+		errno = ENOMEM;
+		return -1;
+	}
+
+	d = opendir(path);
+	if (!d) {
+		free(path);
+		free(name);
+		errno = ENODEV;
+		return -1;
+	}
+	closedir(d);
+
+	ret = __nvme_ctrl_init(c, path, name);
+	free(path);
+	free(name);
+	return ret;
+}
+
 static nvme_ctrl_t nvme_ctrl_alloc(nvme_subsystem_t s, const char *path,
 				   const char *name)
 {
@@ -841,11 +874,15 @@ nvme_ctrl_t nvme_scan_ctrl(nvme_root_t r, const char *name)
 
 	hostnqn = nvme_get_attr(path, "hostnqn");
 	if (!hostnqn) {
+		free(path);
 		errno = ENODEV;
 		return NULL;
 	}
 	hostid = nvme_get_attr(path, "hostid");
 	h = nvme_lookup_host(r, hostnqn, hostid);
+	free(hostnqn);
+	if (hostid)
+		free(hostid);
 	if (!h) {
 		h = nvme_default_host(r);
 		if (!h) {
