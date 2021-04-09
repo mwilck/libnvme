@@ -112,14 +112,14 @@ char *nvmf_hostid_from_file();
 
 /**
  * nvmf_connect_disc_entry() -
- * @r:
+ * @h:
  * @e:
  * @defcfg:
  * @discover:
  *
  * Return: An 
  */
-nvme_ctrl_t nvmf_connect_disc_entry(nvme_root_t r,
+nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 	struct nvmf_disc_log_entry *e,
 	const struct nvme_fabrics_config *defcfg, bool *discover);
 

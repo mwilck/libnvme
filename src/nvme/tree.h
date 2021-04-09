@@ -77,6 +77,14 @@ nvme_host_t nvme_first_host(nvme_root_t r);
 nvme_host_t nvme_next_host(nvme_root_t r, nvme_host_t h);
 
 /**
+ * nvme_host_get_root() -
+ * @h:
+ *
+ * Return: 
+ */
+nvme_root_t nvme_host_get_root(nvme_host_t h);
+
+/**
  * nvme_first_subsystem() -
  * @h:
  *

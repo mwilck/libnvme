@@ -186,14 +186,43 @@ nvme_ctrl_t nvmf_add_ctrl(nvme_root_t r, struct nvme_fabrics_config *cfg)
 	return nvme_scan_ctrl(r, d);
 }
 
-nvme_ctrl_t nvmf_connect_disc_entry(nvme_root_t r,
+nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 				    struct nvmf_disc_log_entry *e,
 				    const struct nvme_fabrics_config *defcfg,
 				    bool *discover)
 {
 	struct nvme_fabrics_config cfg = { 0 };
+	char *transport, *traddr = NULL, *trsvcid = NULL;
+	nvme_root_t r = nvme_host_get_root(h);
+	nvme_subsystem_t s;
 	nvme_ctrl_t c;
 
+	s = nvme_lookup_subsystem(h, e->subnqn);
+	if (!s) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	switch (e->trtype) {
+	case NVMF_TRTYPE_RDMA:
+		transport = "rdma";
+		break;
+	case NVMF_TRTYPE_FC:
+		transport = "fc";
+		break;
+	case NVMF_TRTYPE_TCP:
+		transport = "tcp";
+		break;
+	case NVMF_TRTYPE_LOOP:
+		transport = "loop";
+		break;
+	default:
+		break;
+	}
+	if (!transport) {
+		errno = EINVAL;
+		return NULL;
+	}
 	memcpy(&cfg, defcfg, sizeof(cfg));
 	switch (e->subtype) {
 	case NVME_NQN_DISC:
@@ -215,8 +244,8 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_root_t r,
 		case NVMF_ADDR_FAMILY_IP6:
 			nvme_chomp(e->traddr, NVMF_TRADDR_SIZE);
 			nvme_chomp(e->trsvcid, NVMF_TRSVCID_SIZE);
-			cfg.traddr = e->traddr;
-			cfg.trsvcid = e->trsvcid;
+			traddr = e->traddr;
+			trsvcid = e->trsvcid;
 			break;
 		default:
 			errno = EINVAL;
@@ -227,8 +256,8 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_root_t r,
 		switch (e->adrfam) {
 		case NVMF_ADDR_FAMILY_FC:
 			nvme_chomp(e->traddr, NVMF_TRADDR_SIZE),
-			cfg.traddr = e->traddr;
-			cfg.trsvcid = NULL;
+			traddr = e->traddr;
+			trsvcid = NULL;
 			break;
 		}
 	default:
@@ -236,24 +265,12 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_root_t r,
 		return NULL;
 	}
 
-	switch (e->trtype) {
-	case NVMF_TRTYPE_RDMA:
-		cfg.transport = "rdma";
-		break;
-	case NVMF_TRTYPE_FC:
-		cfg.transport = "fc";
-		break;
-	case NVMF_TRTYPE_TCP:
-		cfg.transport = "tcp";
-		break;
-	case NVMF_TRTYPE_LOOP:
-		cfg.transport = "loop";
-		break;
-	default:
-		break;
+	c = nvme_lookup_ctrl(s, transport, traddr, NULL, trsvcid);
+	if (!c) {
+		errno = ENOMEM;
+		return NULL;
 	}
 
-	cfg.nqn = e->subnqn;
 	if (e->treq & NVMF_TREQ_DISABLE_SQFLOW)
 		cfg.disable_sqflow = true;
 
