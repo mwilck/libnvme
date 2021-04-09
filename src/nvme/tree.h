@@ -94,6 +94,16 @@ nvme_subsystem_t nvme_first_subsystem(nvme_host_t h);
 nvme_subsystem_t nvme_next_subsystem(nvme_host_t h, nvme_subsystem_t s);
 
 /**
+ * nvme_lookup_subsystem() -
+ * @h:
+ * @subsysnqn:
+ *
+ * Return: 
+ */
+nvme_subsystem_t nvme_lookup_subsystem(struct nvme_host *h,
+				       const char *subsysnqn);
+
+/**
  * nvme_ctrl_first_ns() -
  * @c:
  *
