@@ -185,6 +185,11 @@ nvme_host_t nvme_next_host(nvme_root_t r, nvme_host_t h)
 	return h ? list_next(&r->hosts, h, entry) : NULL;
 }
 
+nvme_root_t nvme_host_get_root(nvme_host_t h)
+{
+	return h->r;
+}
+
 nvme_subsystem_t nvme_first_subsystem(nvme_host_t h)
 {
 	return list_top(&h->subsystems, struct nvme_subsystem, entry);
