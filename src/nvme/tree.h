@@ -821,6 +821,22 @@ const char *nvme_subsystem_get_name(nvme_subsystem_t s);
 nvme_root_t nvme_scan_filter(nvme_scan_filter_t f);
 
 /**
+ * nvme_host_get_hostnqn() -
+ * @h:
+ *
+ * Return: 
+ */
+const char *nvme_host_get_hostnqn(nvme_host_t h);
+
+/**
+ * nvme_host_get_hostid() -
+ * @h:
+ *
+ * Return: 
+ */
+const char *nvme_host_get_hostid(nvme_host_t h);
+
+/**
  * nvme_scan() -
  *
  * Return: 

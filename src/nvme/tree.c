@@ -192,6 +192,16 @@ nvme_root_t nvme_host_get_root(nvme_host_t h)
 	return h->r;
 }
 
+const char *nvme_host_get_hostnqn(nvme_host_t h)
+{
+	return h->hostnqn;
+}
+
+const char *nvme_host_get_hostid(nvme_host_t h)
+{
+	return h->hostid;
+}
+
 nvme_subsystem_t nvme_first_subsystem(nvme_host_t h)
 {
 	return list_top(&h->subsystems, struct nvme_subsystem, entry);
