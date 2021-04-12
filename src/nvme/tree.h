@@ -408,6 +408,30 @@ const char *nvme_ns_get_sysfs_dir(nvme_ns_t n);
 const char *nvme_ns_get_name(nvme_ns_t n);
 
 /**
+ * nvme_ns_get_firmware() -
+ * @n:
+ *
+ * Return: 
+ */
+const char *nvme_ns_get_firmware(nvme_ns_t n);
+
+/**
+ * nvme_ns_get_serial() -
+ * @n:
+ *
+ * Return: 
+ */
+const char *nvme_ns_get_serial(nvme_ns_t n);
+
+/**
+ * nvme_ns_get_model() -
+ * @n:
+ *
+ * Return: 
+ */
+const char *nvme_ns_get_model(nvme_ns_t n);
+
+/**
  * nvme_ns_get_subsystem() -
  * @n:
  *

@@ -110,6 +110,9 @@ struct nvme_subsystem {
 	char *name;
 	char *sysfs_dir;
 	char *subsysnqn;
+	char *model;
+	char *serial;
+	char *firmware;
 };
 
 struct nvme_host {
@@ -290,6 +293,12 @@ void nvme_free_subsystem(struct nvme_subsystem *s)
 	free(s->name);
 	free(s->sysfs_dir);
 	free(s->subsysnqn);
+	if (s->model)
+		free(s->model);
+	if (s->serial)
+		free(s->serial);
+	if (s->firmware)
+		free(s->firmware);
 	free(s);
 }
 
@@ -425,6 +434,9 @@ int nvme_scan_subsystem(struct nvme_host *h, char *name, nvme_scan_filter_t f)
 	free(subsysnqn);
 	s->name = strdup(name);
 	s->sysfs_dir = path;
+	s->model = nvme_get_attr(path, "model");
+	s->serial = nvme_get_attr(path, "serial");
+	s->firmware = nvme_get_attr(path, "firmware_rev");
 
 	nvme_subsystem_scan_namespaces(s);
 	nvme_subsystem_scan_ctrls(s);
@@ -1002,6 +1014,21 @@ const char *nvme_ns_get_sysfs_dir(nvme_ns_t n)
 const char *nvme_ns_get_name(nvme_ns_t n)
 {
 	return n->name;
+}
+
+const char *nvme_ns_get_model(nvme_ns_t n)
+{
+	return n->c ? n->c->model : n->s->model;
+}
+
+const char *nvme_ns_get_serial(nvme_ns_t n)
+{
+	return n->c ? n->c->serial : n->s->serial;
+}
+
+const char *nvme_ns_get_firmware(nvme_ns_t n)
+{
+	return n->c ? n->c->firmware : n->s->firmware;
 }
 
 int nvme_ns_get_lba_size(nvme_ns_t n)
