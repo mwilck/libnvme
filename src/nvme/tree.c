@@ -650,12 +650,14 @@ static nvme_ctrl_t __nvme_ctrl_alloc(const char *path, const char *name)
 			host_traddr = a + 12;
 		a = strtok_r(NULL, ",", &e);
 	}
-	c->traddr = strdup(traddr);
+	if (traddr)
+		c->traddr = strdup(traddr);
 	if (trsvcid)
 		c->trsvcid = strdup(trsvcid);
 	if (host_traddr)
 		c->host_traddr = strdup(host_traddr);
 	free(addr);
+
 	return c;
 
 free_ctrl:
