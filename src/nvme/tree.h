@@ -121,6 +121,14 @@ nvme_subsystem_t nvme_lookup_subsystem(struct nvme_host *h,
 				       const char *subsysnqn);
 
 /**
+ * nvme_subsystem_get_host() -
+ * @s:
+ *
+ * Return: 
+ */
+nvme_host_t nvme_subsystem_get_host(nvme_subsystem_t s);
+
+/**
  * nvme_ctrl_first_ns() -
  * @c:
  *
