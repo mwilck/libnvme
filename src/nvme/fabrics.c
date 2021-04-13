@@ -58,6 +58,7 @@ static struct nvme_fabrics_config *merge_config(nvme_ctrl_t c,
 	UPDATE_CFG_OPTION(ctrl_cfg, cfg, disable_sqflow, false);
 	UPDATE_CFG_OPTION(ctrl_cfg, cfg, hdr_digest, false);
 	UPDATE_CFG_OPTION(ctrl_cfg, cfg, data_digest, false);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, persistent, false);
 
 	return ctrl_cfg;
 }

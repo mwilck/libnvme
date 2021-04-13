@@ -760,6 +760,14 @@ struct nvme_fabrics_config *nvme_ctrl_get_config(nvme_ctrl_t c);
 void nvme_ctrl_disable_sqflow(nvme_ctrl_t c, bool disable_sqflow);
 
 /**
+ * nvme_ctrl_is_persistent() -
+ * @c:
+ *
+ * Return:
+ */
+bool nvme_ctrl_is_persistent(nvme_ctrl_t c);
+
+/**
  * nvme_ctrl_identify() -
  * @c:
  * @id:
