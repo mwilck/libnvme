@@ -13,6 +13,9 @@
 #include <stdint.h>
 #include "tree.h"
 
+/* default to 600 seconds of reconnect attempts before giving up */
+#define NVMF_DEF_CTRL_LOSS_TMO		600
+
 /**
  * struct nvme_fabrics_config - Defines all linux nvme fabrics initiator options
  * @queue_size:		Number of IO queue entries
@@ -57,10 +60,12 @@ int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg);
  * nvmf_add_ctrl() -
  * @c:
  * @cfg:
+ * @disable_sqflow:
  *
  * Return:
  */
-int nvmf_add_ctrl(nvme_ctrl_t c, struct nvme_fabrics_config *cfg);
+int nvmf_add_ctrl(nvme_ctrl_t c, const struct nvme_fabrics_config *cfg,
+		  bool disable_sqflow);
 
 /**
  * nvmf_get_discovery_log() -

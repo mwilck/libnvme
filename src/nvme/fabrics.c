@@ -38,6 +38,30 @@ const char *nvmf_dev = "/dev/nvme-fabrics";
 const char *nvmf_hostnqn_file = "/etc/nvme/hostnqn";
 const char *nvmf_hostid_file = "/etc/nvme/hostid";
 
+#define UPDATE_CFG_OPTION(c, n, o, d)			\
+	if ((c)->o == d) (c)->o = (n)->o
+static struct nvme_fabrics_config *merge_config(nvme_ctrl_t c,
+		const struct nvme_fabrics_config *cfg)
+{
+	struct nvme_fabrics_config *ctrl_cfg = nvme_ctrl_get_config(c);
+
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, nr_io_queues, 0);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, nr_write_queues, 0);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, nr_poll_queues, 0);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, queue_size, 0);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, keep_alive_tmo, 0);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, reconnect_delay, 0);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, ctrl_loss_tmo,
+			  NVMF_DEF_CTRL_LOSS_TMO);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, tos, -1);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, duplicate_connect, false);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, disable_sqflow, false);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, hdr_digest, false);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, data_digest, false);
+
+	return ctrl_cfg;
+}
+
 static int add_bool_argument(char **argstr, char *tok, bool arg)
 {
 	char *nstr;
@@ -86,9 +110,10 @@ static int add_argument(char **argstr, const char *tok, const char *arg)
 	return 0;
 }
 
-static int build_options(nvme_ctrl_t c, char **argstr,
-			 struct nvme_fabrics_config *cfg)
+static int build_options(nvme_ctrl_t c, char **argstr)
 {
+	struct nvme_fabrics_config *cfg = nvme_ctrl_get_config(c);
+
 	/* always specify nqn as first arg - this will init the string */
 	if (asprintf(argstr, "nqn=%s",
 		     nvme_ctrl_get_subsysnqn(c)) < 0) {
@@ -175,7 +200,9 @@ int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
 	char *argstr;
 	int ret;
 
-	ret = build_options(c, &argstr, cfg);
+	cfg = merge_config(c, cfg);
+
+	ret = build_options(c, &argstr);
 	if (ret)
 		return ret;
 
@@ -184,11 +211,20 @@ int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
 	return ret;
 }
 
-int nvmf_add_ctrl(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
+int nvmf_add_ctrl(nvme_ctrl_t c, const struct nvme_fabrics_config *cfg,
+		  bool disable_sqflow)
 {
+	char *argstr;
 	int ret;
 
-	ret = nvmf_add_ctrl_opts(c, cfg);
+	cfg = merge_config(c, cfg);
+	nvme_ctrl_disable_sqflow(c, disable_sqflow);
+
+	ret = build_options(c, &argstr);
+	if (ret)
+		return ret;
+	ret = __nvmf_add_ctrl(argstr);
+	free(argstr);
 	if (ret < 0)
 		return ret;
 
@@ -197,13 +233,13 @@ int nvmf_add_ctrl(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
 
 nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 				    struct nvmf_disc_log_entry *e,
-				    const struct nvme_fabrics_config *defcfg,
+				    const struct nvme_fabrics_config *cfg,
 				    bool *discover)
 {
-	struct nvme_fabrics_config cfg = { 0 };
 	char *transport, *traddr = NULL, *trsvcid = NULL;
 	nvme_subsystem_t s;
 	nvme_ctrl_t c;
+	bool disable_sqflow = false;
 	int ret;
 
 	s = nvme_lookup_subsystem(h, e->subnqn);
@@ -232,7 +268,6 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 		errno = EINVAL;
 		return NULL;
 	}
-	memcpy(&cfg, defcfg, sizeof(cfg));
 	switch (e->subtype) {
 	case NVME_NQN_DISC:
 		if (discover)
@@ -281,14 +316,14 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 	}
 
 	if (e->treq & NVMF_TREQ_DISABLE_SQFLOW)
-		cfg.disable_sqflow = true;
+		disable_sqflow = true;
 
-	ret = nvmf_add_ctrl(c, &cfg);
-	if (ret < 0 && errno == EINVAL && cfg.disable_sqflow) {
+	ret = nvmf_add_ctrl(c, cfg, disable_sqflow);
+	if (ret < 0 && errno == EINVAL && disable_sqflow) {
 		errno = 0;
 		/* disable_sqflow is unrecognized option on older kernels */
-		cfg.disable_sqflow = false;
-		ret = nvmf_add_ctrl(c, &cfg);
+		disable_sqflow = false;
+		ret = nvmf_add_ctrl(c, cfg, disable_sqflow);
 		if (ret < 0)
 			c = NULL;
 	}
