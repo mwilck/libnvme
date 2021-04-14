@@ -690,10 +690,33 @@ nvme_path_t nvme_ctrl_next_path(nvme_ctrl_t c, nvme_path_t p)
 	return p ? list_next(&c->paths, p, entry) : NULL;
 }
 
+#define FREE_CTRL_ATTR(a) \
+	do { if (a) { free(a); (a) = NULL; } } while (0)
 int nvme_ctrl_disconnect(nvme_ctrl_t c)
 {
-	return nvme_set_attr(nvme_ctrl_get_sysfs_dir(c),
-			     "delete_controller", "1");
+	int ret;
+
+	ret = nvme_set_attr(nvme_ctrl_get_sysfs_dir(c),
+			    "delete_controller", "1");
+	if (ret < 0)
+		return ret;
+
+	if (c->fd >= 0) {
+		close(c->fd);
+		c->fd = -1;
+	}
+	FREE_CTRL_ATTR(c->name);
+	FREE_CTRL_ATTR(c->sysfs_dir);
+	FREE_CTRL_ATTR(c->firmware);
+	FREE_CTRL_ATTR(c->model);
+	FREE_CTRL_ATTR(c->state);
+	FREE_CTRL_ATTR(c->numa_node);
+	FREE_CTRL_ATTR(c->queue_count);
+	FREE_CTRL_ATTR(c->serial);
+	FREE_CTRL_ATTR(c->sqsize);
+	FREE_CTRL_ATTR(c->address);
+
+	return 0;
 }
 
 void nvme_unlink_ctrl(nvme_ctrl_t c)
