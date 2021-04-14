@@ -706,11 +706,16 @@ int nvme_ctrl_disconnect(nvme_ctrl_t c)
 {
 	int ret;
 
+	if (c->cfg.verbose)
+		fprintf(stderr, "%s: disconnect\n", c->name);
 	ret = nvme_set_attr(nvme_ctrl_get_sysfs_dir(c),
 			    "delete_controller", "1");
-	if (ret < 0)
+	if (ret < 0) {
+		if (c->cfg.verbose)
+			fprintf(stderr, "%s: failed to disconnect, error %d\n",
+				c->name, errno);
 		return ret;
-
+	}
 	if (c->fd >= 0) {
 		close(c->fd);
 		c->fd = -1;

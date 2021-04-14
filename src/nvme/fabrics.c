@@ -157,6 +157,7 @@ static struct nvme_fabrics_config *merge_config(nvme_ctrl_t c,
 	UPDATE_CFG_OPTION(ctrl_cfg, cfg, hdr_digest, false);
 	UPDATE_CFG_OPTION(ctrl_cfg, cfg, data_digest, false);
 	UPDATE_CFG_OPTION(ctrl_cfg, cfg, persistent, false);
+	UPDATE_CFG_OPTION(ctrl_cfg, cfg, verbose, false);
 
 	return ctrl_cfg;
 }
@@ -251,6 +252,7 @@ static int build_options(nvme_ctrl_t c, char **argstr)
 	    add_int_argument(argstr, "keep_alive_tmo", cfg->keep_alive_tmo, false) ||
 	    add_int_argument(argstr, "nr_io_queues", cfg->nr_io_queues, false)) {
 		free(*argstr);
+		errno = ENOMEM;
 		return -1;
 	}
 
@@ -305,8 +307,16 @@ int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
 	if (ret)
 		return ret;
 
+	if (cfg->verbose)
+		fprintf(stderr, "nvmf connect %s\n", argstr);
 	ret = __nvmf_add_ctrl(argstr);
 	free(argstr);
+	if (cfg->verbose) {
+		if (ret < 0)
+			fprintf(stderr, "failed to add ctrl, error %d\n", errno);
+		else
+			fprintf(stderr, "nvme%d: added ctrl\n", ret);
+	}
 	return ret;
 }
 
@@ -323,11 +333,18 @@ int nvmf_add_ctrl(nvme_ctrl_t c, const struct nvme_fabrics_config *cfg,
 	ret = build_options(c, &argstr);
 	if (ret)
 		return ret;
+
+	if (cfg->verbose)
+		fprintf(stderr, "nvmf connect %s\n", argstr);
 	ret = __nvmf_add_ctrl(argstr);
 	free(argstr);
-	if (ret < 0)
+	if (ret < 0) {
+		if (cfg->verbose)
+			fprintf(stderr, "failed to add ctrl, error %d\n", ret);
 		return ret;
-
+	}
+	if (cfg->verbose)
+		fprintf(stderr, "nvme%d: added ctrl\n", ret);
 	return nvme_init_ctrl(c, ret);
 }
 
@@ -344,6 +361,10 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 
 	s = nvme_lookup_subsystem(h, e->subnqn);
 	if (!s) {
+		if (cfg->verbose)
+			fprintf(stderr, "skipping discovery entry, "
+			       "failed to allocate subsystem %s\n",
+				e->subnqn);
 		errno = ENOMEM;
 		return NULL;
 	}
@@ -365,6 +386,10 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 		break;
 	}
 	if (!transport) {
+		if (cfg->verbose)
+			fprintf(stderr, "skipping discovery entry, "
+			       "invalid transport type %d\n",
+			       e->trtype);
 		errno = EINVAL;
 		return NULL;
 	}
@@ -376,6 +401,10 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 	case NVME_NQN_NVME:
 		break;
 	default:
+		if (cfg->verbose)
+			fprintf(stderr, "skipping discovery entry, "
+			       "invalid subsystem type %d\n",
+			       e->subtype);
 		errno = EINVAL;
 		return NULL;
 	}
@@ -392,6 +421,10 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 			trsvcid = e->trsvcid;
 			break;
 		default:
+			if (cfg->verbose)
+				fprintf(stderr, "skipping discovery entry, "
+				       "invalid address family %d\n",
+				       e->trtype);
 			errno = EINVAL;
 			return NULL;
 		}
@@ -405,16 +438,31 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 			break;
 		}
 	default:
+		if (cfg->verbose)
+			fprintf(stderr, "skipping discovery entry, "
+				"invalid transport type %d\n",
+				e->trtype);
 		errno = EINVAL;
 		return NULL;
 	}
 
+	if (cfg->verbose)
+		fprintf(stderr, "lookup ctrl %s %s %s\n",
+			transport, traddr, trsvcid);
+
 	c = nvme_lookup_ctrl(s, transport, traddr, NULL, trsvcid);
 	if (!c) {
+		if (cfg->verbose)
+			fprintf(stderr, "skipping discovery entry, "
+				"failed to allocate controller on %s port %s\n",
+				transport, traddr);
 		errno = ENOMEM;
 		return NULL;
 	}
 	if (nvme_ctrl_is_discovered(c)) {
+		if (cfg->verbose)
+			fprintf(stderr, "skipping discovery entry, "
+				"already discovered\n");
 		errno = EAGAIN;
 		return NULL;
 	}
@@ -426,10 +474,17 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 	if (ret < 0 && errno == EINVAL && disable_sqflow) {
 		errno = 0;
 		/* disable_sqflow is unrecognized option on older kernels */
+		if (cfg->verbose)
+			fprintf(stderr, "failed to connect controller, "
+				"retry with disabling SQ flow control\n");
 		disable_sqflow = false;
 		ret = nvmf_add_ctrl(c, cfg, disable_sqflow);
-		if (ret < 0)
+		if (ret < 0) {
+			if (cfg->verbose)
+				fprintf(stderr, "failed to connect controller, "
+					"error %d\n", errno);
 			c = NULL;
+		}
 	}
 
 	return c;
@@ -444,7 +499,9 @@ static int nvme_discovery_log(int fd, __u32 len, struct nvmf_discovery_log *log)
 int nvmf_get_discovery_log(nvme_ctrl_t c, struct nvmf_discovery_log **logp,
 			   int max_retries)
 {
+	struct nvme_fabrics_config *cfg = nvme_ctrl_get_config(c);
 	struct nvmf_discovery_log *log;
+	const char *name = nvme_ctrl_get_name(c);
 	int hdr, ret, retries = 0;
 	uint64_t genctr, numrec;
 	unsigned int size;
@@ -457,9 +514,15 @@ int nvmf_get_discovery_log(nvme_ctrl_t c, struct nvmf_discovery_log **logp,
 	}
 	memset(log, 0, hdr);
 
+	if (cfg->verbose)
+		fprintf(stderr, "%s: discover length %d\n", name, 0x100);
 	ret = nvme_discovery_log(nvme_ctrl_get_fd(c), 0x100, log);
-	if (ret)
+	if (ret) {
+		if (cfg->verbose)
+			fprintf(stderr, "%s: discover failed, error %d\n",
+			       name, errno);
 		goto out_free_log;
+	}
 
 	do {
 		numrec = le64_to_cpu(log->numrec);
@@ -481,21 +544,43 @@ int nvmf_get_discovery_log(nvme_ctrl_t c, struct nvmf_discovery_log **logp,
 		}
 		memset(log, 0, size);
 
+		if (cfg->verbose)
+			fprintf(stderr, "%s: discover length %d\n", name, size);
+
 		ret = nvme_discovery_log(nvme_ctrl_get_fd(c), size, log);
-		if (ret)
+		if (ret) {
+			if (cfg->verbose)
+				fprintf(stderr, "%s: discover "
+					"try %d/%d failed, error %d\n",
+					name, retries, max_retries, errno);
 			goto out_free_log;
+		}
 
 		genctr = le64_to_cpu(log->genctr);
+		if (cfg->verbose)
+			fprintf(stderr, "%s: discover genctr %lu, retry\n",
+				name, genctr);
 		ret = nvme_discovery_log(nvme_ctrl_get_fd(c), hdr, log);
-		if (ret)
+		if (ret) {
+			if (cfg->verbose)
+				fprintf(stderr, "%s: discover "
+					"try %d/%d failed, error %d\n",
+					name, retries, max_retries, errno);
 			goto out_free_log;
+		}
 	} while (genctr != le64_to_cpu(log->genctr) &&
 		 ++retries < max_retries);
 
 	if (genctr != le64_to_cpu(log->genctr)) {
+		if (cfg->verbose)
+			fprintf(stderr, "%s: discover genctr mismatch\n", name);
 		errno = EAGAIN;
 		ret = -1;
 	} else if (numrec != le64_to_cpu(log->numrec)) {
+		if (cfg->verbose)
+			fprintf(stderr,
+				"%s: could only fetch %lu of %lu records\n",
+				name, numrec, le64_to_cpu(log->numrec));
 		errno = EBADSLT;
 		ret = -1;
 	} else {

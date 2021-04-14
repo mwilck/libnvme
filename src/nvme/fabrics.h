@@ -47,6 +47,7 @@ struct nvme_fabrics_config {
 	bool data_digest;
 	bool discovered;
 	bool persistent;
+	bool verbose;
 };
 
 /**
