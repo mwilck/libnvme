@@ -45,6 +45,7 @@ struct nvme_fabrics_config {
 	bool disable_sqflow;
 	bool hdr_digest;
 	bool data_digest;
+	bool discovered;
 	bool persistent;
 };
 

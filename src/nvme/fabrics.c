@@ -220,6 +220,7 @@ int nvmf_add_ctrl(nvme_ctrl_t c, const struct nvme_fabrics_config *cfg,
 
 	cfg = merge_config(c, cfg);
 	nvme_ctrl_disable_sqflow(c, disable_sqflow);
+	nvme_ctrl_set_discovered(c, true);
 
 	ret = build_options(c, &argstr);
 	if (ret)
@@ -313,6 +314,10 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 	c = nvme_lookup_ctrl(s, transport, traddr, NULL, trsvcid);
 	if (!c) {
 		errno = ENOMEM;
+		return NULL;
+	}
+	if (nvme_ctrl_is_discovered(c)) {
+		errno = EAGAIN;
 		return NULL;
 	}
 
