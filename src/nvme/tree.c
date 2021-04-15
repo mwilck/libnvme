@@ -884,7 +884,6 @@ static int __nvme_ctrl_init(nvme_ctrl_t c, const char *path, const char *name)
 int nvme_init_ctrl(nvme_ctrl_t c, int instance)
 {
 	char *path, *name;
-	DIR *d;
 	int ret;
 
 	ret = asprintf(&name, "nvme%d", instance);
@@ -899,14 +898,10 @@ int nvme_init_ctrl(nvme_ctrl_t c, int instance)
 		return -1;
 	}
 
-	d = opendir(path);
-	if (!d) {
+	ret = __nvme_ctrl_init(c, path, name);
+	if (ret < 0)
 		free(path);
-		free(name);
-		errno = ENODEV;
-		return -1;
-	}
-	closedir(d);
+
 	c->address = nvme_get_attr(path, "address");
 	if (!c->address) {
 		free(path);
@@ -914,9 +909,6 @@ int nvme_init_ctrl(nvme_ctrl_t c, int instance)
 		errno = -ENXIO;
 		return -1;
 	}
-	ret = __nvme_ctrl_init(c, path, name);
-	if (ret < 0)
-		free(path);
 
 	free(name);
 	return ret;
