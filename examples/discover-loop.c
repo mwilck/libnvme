@@ -49,7 +49,6 @@ int main()
 	struct nvmf_discovery_log *log = NULL;
 	nvme_root_t r;
 	nvme_host_t h;
-	nvme_subsystem_t s;
 	nvme_ctrl_t c;
 	char *hnqn, *hid;
 	int ret;
@@ -66,17 +65,12 @@ int main()
 		fprintf(stderr, "Failed to allocated memory\n");
 		return ENOMEM;
 	}
-	s = nvme_lookup_subsystem(h, NVME_DISC_SUBSYS_NAME);
-	if (!s) {
-		fprintf(stderr, "Failed to allocate memory\n");
-		return ENOMEM;
-	}
-	c = nvme_lookup_ctrl(s, "loop", NULL, NULL, NULL);
+	c = nvme_create_ctrl(NVME_DISC_SUBSYS_NAME, "loop", NULL, NULL, NULL);
 	if (!c) {
 		fprintf(stderr, "Failed to allocate memory\n");
 		return ENOMEM;
 	}
-	ret = nvmf_add_ctrl(c, &cfg, false);
+	ret = nvmf_add_ctrl(h, c, &cfg, false);
 	if (ret < 0) {
 		fprintf(stderr, "no controller found\n");
 		return errno;

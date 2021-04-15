@@ -113,11 +113,13 @@ nvme_subsystem_t nvme_next_subsystem(nvme_host_t h, nvme_subsystem_t s);
 /**
  * nvme_lookup_subsystem() -
  * @h:
+ * @name:
  * @subsysnqn:
  *
  * Return: 
  */
 nvme_subsystem_t nvme_lookup_subsystem(struct nvme_host *h,
+				       const char *name,
 				       const char *subsysnqn);
 
 /**
@@ -190,6 +192,21 @@ nvme_ctrl_t nvme_subsystem_next_ctrl(nvme_subsystem_t s, nvme_ctrl_t c);
  * Return: 
  */
 nvme_ctrl_t nvme_lookup_ctrl(nvme_subsystem_t s, const char *transport,
+			     const char *traddr, const char *host_traddr,
+			     const char *trsvcid);
+
+
+/**
+ * nvme_create_ctrl() -
+ * @subsysnqn:
+ * @transport:
+ * @traddr:
+ * @host_traddr:
+ * @trsvcid:
+ *
+ * Return: 
+ */
+nvme_ctrl_t nvme_create_ctrl(const char *subsysnqn, const char *transport,
 			     const char *traddr, const char *host_traddr,
 			     const char *trsvcid);
 
@@ -811,12 +828,13 @@ nvme_ctrl_t nvme_scan_ctrl(nvme_root_t r, const char *name);
 
 /**
  * nvme_init_ctrl() -
+ * @h:
  * @c:
  * @instance:
  *
  * Return: 
  */
-int nvme_init_ctrl(nvme_ctrl_t c, int instance);
+int nvme_init_ctrl(nvme_host_t h, nvme_ctrl_t c, int instance);
 
 /**
  * nvme_free_ctrl() -

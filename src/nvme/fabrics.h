@@ -125,13 +125,15 @@ int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg);
 
 /**
  * nvmf_add_ctrl() -
+ * @h:
  * @c:
  * @cfg:
  * @disable_sqflow:
  *
  * Return:
  */
-int nvmf_add_ctrl(nvme_ctrl_t c, const struct nvme_fabrics_config *cfg,
+int nvmf_add_ctrl(nvme_host_t h, nvme_ctrl_t c,
+		  const struct nvme_fabrics_config *cfg,
 		  bool disable_sqflow);
 
 /**

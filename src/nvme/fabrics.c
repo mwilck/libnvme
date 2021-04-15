@@ -320,7 +320,8 @@ int nvmf_add_ctrl_opts(nvme_ctrl_t c, struct nvme_fabrics_config *cfg)
 	return ret;
 }
 
-int nvmf_add_ctrl(nvme_ctrl_t c, const struct nvme_fabrics_config *cfg,
+int nvmf_add_ctrl(nvme_host_t h, nvme_ctrl_t c,
+		  const struct nvme_fabrics_config *cfg,
 		  bool disable_sqflow)
 {
 	char *argstr;
@@ -344,8 +345,8 @@ int nvmf_add_ctrl(nvme_ctrl_t c, const struct nvme_fabrics_config *cfg,
 		return ret;
 	}
 	if (cfg->verbose)
-		fprintf(stderr, "nvme%d: added ctrl\n", ret);
-	return nvme_init_ctrl(c, ret);
+		fprintf(stderr, "nvme%d: ctrl connected\n", ret);
+	return nvme_init_ctrl(h, c, ret);
 }
 
 nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
@@ -355,7 +356,6 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 {
 	const char *transport;
 	char *traddr = NULL, *trsvcid = NULL;
-	nvme_subsystem_t s;
 	nvme_ctrl_t c;
 	bool disable_sqflow = false;
 	int ret;
@@ -373,16 +373,6 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 			       "invalid subsystem type %d\n",
 			       e->subtype);
 		errno = EINVAL;
-		return NULL;
-	}
-
-	s = nvme_lookup_subsystem(h, e->subnqn);
-	if (!s) {
-		if (cfg->verbose)
-			fprintf(stderr, "skipping discovery entry, "
-			       "failed to allocate subsystem %s\n",
-				e->subnqn);
-		errno = ENOMEM;
 		return NULL;
 	}
 
@@ -430,7 +420,7 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 		fprintf(stderr, "lookup ctrl %s %s %s\n",
 			transport, traddr, trsvcid);
 
-	c = nvme_lookup_ctrl(s, transport, traddr, NULL, trsvcid);
+	c = nvme_create_ctrl(e->subnqn, transport, traddr, NULL, trsvcid);
 	if (!c) {
 		if (cfg->verbose)
 			fprintf(stderr, "skipping discovery entry, "
@@ -439,18 +429,11 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 		errno = ENOMEM;
 		return NULL;
 	}
-	if (nvme_ctrl_is_discovered(c)) {
-		if (cfg->verbose)
-			fprintf(stderr, "skipping discovery entry, "
-				"already discovered\n");
-		errno = EAGAIN;
-		return NULL;
-	}
 
 	if (e->treq & NVMF_TREQ_DISABLE_SQFLOW)
 		disable_sqflow = true;
 
-	ret = nvmf_add_ctrl(c, cfg, disable_sqflow);
+	ret = nvmf_add_ctrl(h, c, cfg, disable_sqflow);
 	if (!ret)
 		return c;
 
@@ -461,13 +444,14 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 			fprintf(stderr, "failed to connect controller, "
 				"retry with disabling SQ flow control\n");
 		disable_sqflow = false;
-		ret = nvmf_add_ctrl(c, cfg, disable_sqflow);
+		ret = nvmf_add_ctrl(h, c, cfg, disable_sqflow);
 		if (!ret)
 			return c;
 	}
 	if (cfg->verbose)
 		fprintf(stderr, "failed to connect controller, "
 			"error %d\n", errno);
+	nvme_free_ctrl(c);
 	return NULL;
 }
 
