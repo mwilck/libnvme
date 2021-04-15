@@ -353,46 +353,13 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 				    const struct nvme_fabrics_config *cfg,
 				    bool *discover)
 {
-	char *transport, *traddr = NULL, *trsvcid = NULL;
+	const char *transport;
+	char *traddr = NULL, *trsvcid = NULL;
 	nvme_subsystem_t s;
 	nvme_ctrl_t c;
 	bool disable_sqflow = false;
 	int ret;
 
-	s = nvme_lookup_subsystem(h, e->subnqn);
-	if (!s) {
-		if (cfg->verbose)
-			fprintf(stderr, "skipping discovery entry, "
-			       "failed to allocate subsystem %s\n",
-				e->subnqn);
-		errno = ENOMEM;
-		return NULL;
-	}
-
-	switch (e->trtype) {
-	case NVMF_TRTYPE_RDMA:
-		transport = "rdma";
-		break;
-	case NVMF_TRTYPE_FC:
-		transport = "fc";
-		break;
-	case NVMF_TRTYPE_TCP:
-		transport = "tcp";
-		break;
-	case NVMF_TRTYPE_LOOP:
-		transport = "loop";
-		break;
-	default:
-		break;
-	}
-	if (!transport) {
-		if (cfg->verbose)
-			fprintf(stderr, "skipping discovery entry, "
-			       "invalid transport type %d\n",
-			       e->trtype);
-		errno = EINVAL;
-		return NULL;
-	}
 	switch (e->subtype) {
 	case NVME_NQN_DISC:
 		if (discover)
@@ -409,6 +376,17 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 		return NULL;
 	}
 
+	s = nvme_lookup_subsystem(h, e->subnqn);
+	if (!s) {
+		if (cfg->verbose)
+			fprintf(stderr, "skipping discovery entry, "
+			       "failed to allocate subsystem %s\n",
+				e->subnqn);
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	transport = nvmf_trtype_str(e->trtype);
 	switch (e->trtype) {
 	case NVMF_TRTYPE_RDMA:
 	case NVMF_TRTYPE_TCP:
@@ -437,6 +415,8 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 			trsvcid = NULL;
 			break;
 		}
+	case NVMF_TRTYPE_LOOP:
+		break;
 	default:
 		if (cfg->verbose)
 			fprintf(stderr, "skipping discovery entry, "
@@ -471,7 +451,10 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 		disable_sqflow = true;
 
 	ret = nvmf_add_ctrl(c, cfg, disable_sqflow);
-	if (ret < 0 && errno == EINVAL && disable_sqflow) {
+	if (!ret)
+		return c;
+
+	if (errno == EINVAL && disable_sqflow) {
 		errno = 0;
 		/* disable_sqflow is unrecognized option on older kernels */
 		if (cfg->verbose)
@@ -479,15 +462,13 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 				"retry with disabling SQ flow control\n");
 		disable_sqflow = false;
 		ret = nvmf_add_ctrl(c, cfg, disable_sqflow);
-		if (ret < 0) {
-			if (cfg->verbose)
-				fprintf(stderr, "failed to connect controller, "
-					"error %d\n", errno);
-			c = NULL;
-		}
+		if (!ret)
+			return c;
 	}
-
-	return c;
+	if (cfg->verbose)
+		fprintf(stderr, "failed to connect controller, "
+			"error %d\n", errno);
+	return NULL;
 }
 
 static int nvme_discovery_log(int fd, __u32 len, struct nvmf_discovery_log *log)
