@@ -27,6 +27,8 @@
 /* XXX: Make a place for private declarations */
 extern int nvme_set_attr(const char *dir, const char *attr, const char *value);
 
+static struct nvme_host *default_host;
+
 nvme_host_t nvme_default_host(nvme_root_t r);
 void nvme_free_host(struct nvme_host *h);
 void nvme_free_subsystem(struct nvme_subsystem *s);
@@ -96,6 +98,8 @@ struct nvme_ctrl {
 	char *queue_count;
 	char *serial;
 	char *sqsize;
+	char *hostnqn;
+	char *hostid;
 	char *transport;
 	char *subsysnqn;
 	char *traddr;
@@ -390,6 +394,7 @@ nvme_host_t nvme_default_host(nvme_root_t r)
 	hostid = nvmf_hostid_from_file();
 
 	h = nvme_lookup_host(r, hostnqn, hostid);
+	default_host = h;
 	free(hostnqn);
 	free(hostid);
 	return h;
@@ -600,7 +605,7 @@ const char *nvme_ctrl_get_sysfs_dir(nvme_ctrl_t c)
 
 const char *nvme_ctrl_get_subsysnqn(nvme_ctrl_t c)
 {
-	return c->s->subsysnqn;
+	return c->s ? c->s->subsysnqn : c->subsysnqn;
 }
 
 const char *nvme_ctrl_get_address(nvme_ctrl_t c)
@@ -665,11 +670,15 @@ const char *nvme_ctrl_get_host_traddr(nvme_ctrl_t c)
 
 const char *nvme_ctrl_get_hostnqn(nvme_ctrl_t c)
 {
+	if (!c->s)
+		return default_host->hostnqn;
 	return c->s->h->hostnqn;
 }
 
 const char *nvme_ctrl_get_hostid(nvme_ctrl_t c)
 {
+	if (!c->s)
+		return default_host->hostid;
 	return c->s->h->hostid;
 }
 
@@ -982,6 +991,8 @@ int nvme_init_ctrl(nvme_host_t h, nvme_ctrl_t c, int instance)
 		errno = ENXIO;
 		ret = -1;
 	}
+	c->s = s;
+	list_add(&s->ctrls, &c->entry);
 	free(name);
 	return ret;
 }
