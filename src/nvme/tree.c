@@ -707,6 +707,11 @@ bool nvme_ctrl_is_discovered(nvme_ctrl_t c)
 	return c->cfg.discovered;
 }
 
+void nvme_ctrl_set_verbosity(nvme_ctrl_t c, bool verbose)
+{
+	c->cfg.verbose = verbose;
+}
+
 int nvme_ctrl_identify(nvme_ctrl_t c, struct nvme_id_ctrl *id)
 {
 	return nvme_identify_ctrl(nvme_ctrl_get_fd(c), id);

@@ -802,6 +802,15 @@ void nvme_ctrl_set_discovered(nvme_ctrl_t c, bool discovered);
 bool nvme_ctrl_is_discovered(nvme_ctrl_t c);
 
 /**
+ * nvme_ctrl_set_verbosity() -
+ * @c:
+ * @verbose:
+ *
+ * Return:
+ */
+void nvme_ctrl_set_verbosity(nvme_ctrl_t c, bool verbose);
+
+/**
  * nvme_ctrl_identify() -
  * @c:
  * @id:
