@@ -213,6 +213,7 @@ static int add_argument(char **argstr, const char *tok, const char *arg)
 static int build_options(nvme_ctrl_t c, char **argstr)
 {
 	struct nvme_fabrics_config *cfg = nvme_ctrl_get_config(c);
+	const char *transport = nvme_ctrl_get_transport(c);
 
 	/* always specify nqn as first arg - this will init the string */
 	if (asprintf(argstr, "nqn=%s",
@@ -222,8 +223,7 @@ static int build_options(nvme_ctrl_t c, char **argstr)
 	}
 
 
-	if (add_argument(argstr, "transport",
-			 nvme_ctrl_get_transport(c)) ||
+	if (add_argument(argstr, "transport", transport) ||
 	    add_argument(argstr, "traddr",
 			 nvme_ctrl_get_traddr(c)) ||
 	    add_argument(argstr, "host_traddr",
@@ -240,14 +240,17 @@ static int build_options(nvme_ctrl_t c, char **argstr)
 			     cfg->nr_poll_queues, false) ||
 	    add_int_argument(argstr, "reconnect_delay",
 			     cfg->reconnect_delay, false) ||
-	    add_int_argument(argstr, "ctrl_loss_tmo",
-			     cfg->ctrl_loss_tmo, false) ||
+	    (strcmp(transport, "loop") &&
+	     add_int_argument(argstr, "ctrl_loss_tmo",
+				 cfg->ctrl_loss_tmo, false)) ||
 	    add_int_argument(argstr, "tos", cfg->tos, true) ||
 	    add_bool_argument(argstr, "duplicate_connect",
 			      cfg->duplicate_connect) ||
 	    add_bool_argument(argstr, "disable_sqflow", cfg->disable_sqflow) ||
-	    add_bool_argument(argstr, "hdr_digest", cfg->hdr_digest) ||
-	    add_bool_argument(argstr, "data_digest", cfg->data_digest) ||
+	    (!strcmp(transport, "tcp") &&
+	     add_bool_argument(argstr, "hdr_digest", cfg->hdr_digest)) ||
+	    (!strcmp(transport, "tcp") &&
+	     add_bool_argument(argstr, "data_digest", cfg->data_digest)) ||
 	    add_int_argument(argstr, "queue_size", cfg->queue_size, false) ||
 	    add_int_argument(argstr, "keep_alive_tmo", cfg->keep_alive_tmo, false) ||
 	    add_int_argument(argstr, "nr_io_queues", cfg->nr_io_queues, false)) {
