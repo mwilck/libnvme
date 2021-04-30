@@ -231,6 +231,11 @@ nvme_subsystem_t nvme_next_subsystem(nvme_host_t h, nvme_subsystem_t s)
 	return s ? list_next(&h->subsystems, s, entry) : NULL;
 }
 
+nvme_host_t nvme_subsystem_get_host(nvme_subsystem_t s)
+{
+	return s->h;
+}
+
 void nvme_refresh_topology(nvme_root_t r)
 {
 	struct nvme_host *h, *_h;
@@ -326,9 +331,9 @@ void nvme_free_subsystem(struct nvme_subsystem *s)
 	free(s);
 }
 
-static struct nvme_subsystem *nvme_lookup_subsystem(struct nvme_host *h,
-						    const char *name,
-						    const char *subsysnqn)
+struct nvme_subsystem *nvme_lookup_subsystem(struct nvme_host *h,
+					     const char *name,
+					     const char *subsysnqn)
 {
 	struct nvme_subsystem *s;
 
