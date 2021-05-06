@@ -918,6 +918,14 @@ const char *nvme_host_get_hostid(nvme_host_t h);
  */
 nvme_host_t nvme_default_host(nvme_root_t r);
 
+nvme_root_t nvme_host_get_root(nvme_host_t h);
+
+/**
+ * nvme_free_host() -
+ * @r:
+ */
+void nvme_free_host(nvme_host_t h);
+
 /**
  * nvme_scan() -
  * @config_file:
