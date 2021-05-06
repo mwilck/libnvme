@@ -8,6 +8,11 @@
  */
 
 %module libnvme
+
+%include "exception.i"
+
+%allowexception;
+
 %{
 #include <ccan/list/list.h>
 #include "tree.h"
@@ -71,58 +76,75 @@ struct nvme_root {
 	bool modified;
 };
 
+struct nvme_host_iter {
+    struct nvme_root *root;
+    struct nvme_host *pos;
+};
+
 %}
 
 #include "tree.h"
 #include "fabrics.h"
 
-typedef struct nvme_root {
+struct nvme_root {
 	bool modified;
-} nvme_root_t;
+};
 
-%inline %{
-  struct nvme_host_iter {
-    nvme_host_t list;
-    nvme_host_t pos;
+struct nvme_host_iter {
+    struct nvme_root *root;
+    struct nvme_host *pos;
   };
-%}
 
-typedef struct nvme_host {
-	struct nvme_root *root;
-
+struct nvme_host {
 	char *hostnqn;
 	char *hostid;
-} nvme_host_t;
+};
+
+%extend nvme_root {
+  nvme_root(const char *config_file = NULL) {
+    return nvme_scan(config_file);
+  }
+  ~nvme_root() {
+    nvme_free_tree($self);
+  }
+}
 
 %extend nvme_host_iter {
   struct nvme_host_iter *__iter__() {
     return $self;
   }
-  nvme_host_t next() {
-    if ($self->pos) {
-      return nvme_next_host(nvme_host_get_root($self->list),
-				   $self->pos);
+    
+  struct nvme_host *__next__() {
+    struct nvme_host *this = $self->pos;
+
+    if (!this) {
+      PyErr_SetString(PyExc_StopIteration, "End of hosts");
+      return NULL;
     }
-    return $self->list;
+    $self->pos = nvme_next_host($self->root, this);
+    return this;
+  }
+}
+
+%extend nvme_root {
+  struct nvme_host_iter hosts() {
+    struct nvme_host_iter ret = {$self, nvme_first_host($self)};
+    return ret;
   }
 }
 
 %extend nvme_host {
-  nvme_host(nvme_root_t r, const char *hostnqn, const char *hostid) {
+  nvme_host(struct nvme_root *r, const char *hostnqn, const char *hostid) {
     return nvme_lookup_host(r, hostnqn, hostid);
   }
   ~nvme_host() {
     nvme_free_host($self);
   }
   char *__str__() {
-    static char tmp[1024];
+    static char tmp[2048];
 
     sprintf(tmp, "nvme_host(%s,%s)", $self->hostnqn, $self->hostid);
     return tmp;
-  }
-  struct nvme_host_iter __iter__() {
-    struct nvme_host_iter ret = { $self, NULL };
-    return ret;
   }
 }
 
@@ -217,46 +239,32 @@ typedef struct nvme_ctrl {
   }
 }
 
-nvme_host_t nvme_lookup_host(nvme_root_t r, const char *hostnqn,
-			     const char *hostid);
-nvme_subsystem_t nvme_lookup_subsystem(struct nvme_host *h,
-				       const char *name,
-				       const char *subsysnqn);
+struct nvme_host *nvme_lookup_host(struct nvme_root *r,
+				   const char *hostnqn = NULL,
+				   const char *hostid = NULL);
+struct nvme_subsystem *nvme_lookup_subsystem(struct nvme_host *h,
+					     const char *name,
+					     const char *subsysnqn);
 
-nvme_ctrl_t nvme_lookup_ctrl(nvme_subsystem_t s, const char *transport,
-			     const char *traddr, const char *host_traddr,
-			     const char *trsvcid);
+struct nvme_ctrl *nvme_lookup_ctrl(struct nvme_subsystem *s,
+				   const char *transport,
+				   const char *traddr,
+				   const char *host_traddr = NULL,
+				   const char *trsvcid = NULL);
 
-nvme_ctrl_t nvme_create_ctrl(const char *subsysnqn, const char *transport,
-			     const char *traddr, const char *host_traddr,
-			     const char *trsvcid);
+struct nvme_ctrl *nvme_create_ctrl(const char *subsysnqn,
+				   const char *transport,
+				   const char *traddr,
+				   const char *host_traddr = NULL,
+				   const char *trsvcid = NULL);
 
-void nvme_free_ns(struct nvme_ns *n);
-int nvme_ns_read(nvme_ns_t n, void *buf, off_t offset, size_t count);
-int nvme_ns_write(nvme_ns_t n, void *buf, off_t offset, size_t count);
-int nvme_ns_verify(nvme_ns_t n, off_t offset, size_t count);
-int nvme_ns_compare(nvme_ns_t n, void *buf, off_t offset, size_t count);
-int nvme_ns_write_zeros(nvme_ns_t n, off_t offset, size_t count);
-int nvme_ns_write_uncorrectable(nvme_ns_t n, off_t offset, size_t count);
-int nvme_ns_flush(nvme_ns_t n);
-int nvme_ns_identify(nvme_ns_t n, struct nvme_id_ns *ns);
-int nvme_ns_identify_descs(nvme_ns_t n, struct nvme_ns_id_desc *descs);
-int nvme_ctrl_identify(nvme_ctrl_t c, struct nvme_id_ctrl *id);
-int nvme_ctrl_disconnect(nvme_ctrl_t c);
-nvme_ctrl_t nvme_scan_ctrl(nvme_root_t r, const char *name);
-int nvme_init_ctrl(nvme_host_t h, nvme_ctrl_t c, int instance);
+struct nvme_host *nvme_default_host(struct nvme_root *r);
+struct nvme_root *nvme_scan(const char *config_file = NULL);
+void nvme_free_tree(struct nvme_root *r);
+
 void nvme_free_ctrl(struct nvme_ctrl *c);
+int nvme_ctrl_disconnect(struct nvme_ctrl *c);
 void nvme_unlink_ctrl(struct nvme_ctrl *c);
-nvme_root_t nvme_scan_filter(nvme_scan_filter_t f);
-nvme_host_t nvme_default_host(nvme_root_t r);
-nvme_root_t nvme_scan(const char *config_file);
-void nvme_refresh_topology(nvme_root_t r);
-void nvme_reset_topology(nvme_root_t r);
-int nvme_update_config(nvme_root_t r, const char *config_file);
-void nvme_free_tree(nvme_root_t r);
-char *nvme_get_attr(const char *dir, const char *attr);
-char *nvme_get_subsys_attr(nvme_subsystem_t s, const char *attr);
-char *nvme_get_ctrl_attr(nvme_ctrl_t c, const char *attr);
-char *nvme_get_ns_attr(nvme_ns_t n, const char *attr);
-char *nvme_get_path_attr(nvme_path_t p, const char *attr);
-nvme_ns_t nvme_scan_namespace(const char *name);
+void nvme_refresh_topology(struct nvme_root *r);
+void nvme_reset_topology(struct nvme_root *r);
+int nvme_update_config(struct nvme_root *r, const char *config_file);

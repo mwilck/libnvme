@@ -390,6 +390,8 @@ struct nvme_host *nvme_lookup_host(nvme_root_t r, const char *hostnqn,
 {
 	struct nvme_host *h;
 
+	if (!hostnqn)
+		return NULL;
 	nvme_for_each_host(r, h) {
 		if (strcmp(h->hostnqn, hostnqn))
 			continue;
