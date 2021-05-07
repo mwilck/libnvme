@@ -940,6 +940,8 @@ void nvme_free_host(nvme_host_t h);
  */
 nvme_root_t nvme_scan(const char *config_file);
 
+nvme_ns_t nvme_subsystem_lookup_namespace(struct nvme_subsystem *s,
+					  __u32 nsid);
 /**
  * nvme_refresh_topology() -
  * @r:

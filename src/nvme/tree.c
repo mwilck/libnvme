@@ -1480,3 +1480,24 @@ static int nvme_subsystem_scan_namespace(struct nvme_subsystem *s, char *name)
 	list_add(&s->namespaces, &n->entry);
 	return 0;
 }
+
+struct nvme_ns *nvme_subsystem_lookup_namespace(struct nvme_subsystem *s,
+						__u32 nsid)
+{
+	struct nvme_ns *n;
+	char *name;
+	int ret;
+
+	ret = asprintf(&name, "%sn%u", s->name, nsid);
+	if (ret < 0)
+		return NULL;
+	n = __nvme_scan_namespace(s->sysfs_dir, name);
+	if (!n) {
+		free(name);
+		return NULL;
+	}
+
+	n->subsystem = s;
+	list_add(&s->namespaces, &n->entry);
+	return n;
+}
