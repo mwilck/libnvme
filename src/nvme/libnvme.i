@@ -138,18 +138,18 @@ struct nvme_root {
 };
 
 struct nvme_host {
-  %immutable;
+  %immutable hostnqn;
+  %immutable hostid;
   char *hostnqn;
   char *hostid;
-  %mutable;
 };
 
 struct nvme_subsystem {
   struct nvme_host *host;
-  %immutable;
+  %immutable subsysnqn;
+  %immutable name;
   char *subsysnqn;
   char *name;
-  %mutable;
   char *sysfs_dir;
   char *model;
   char *serial;
@@ -170,13 +170,16 @@ struct nvme_ctrl {
   char *queue_count;
   char *serial;
   char *sqsize;
-  %immutable;
+  %immutable transport;
+  %immutable subsysnqn;
+  %immutable traddr;
+  %immutable host_traddr;
+  %immutable trsvcid;
   char *transport;
   char *subsysnqn;
   char *traddr;
-  char *trsvcid;
   char *host_traddr;
-  %mutable;
+  char *trsvcid;
   bool discovered;
   bool persistent;
   struct nvme_fabrics_config cfg;
