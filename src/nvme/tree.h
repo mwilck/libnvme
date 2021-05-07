@@ -831,12 +831,12 @@ bool nvme_ctrl_is_verbose(nvme_ctrl_t c);
 int nvme_ctrl_identify(nvme_ctrl_t c, struct nvme_id_ctrl *id);
 
 /**
- * nvme_ctrl_disconnect() -
+ * nvme_disconnect_ctrl() -
  * @c:
  *
  * Return: 
  */
-int nvme_ctrl_disconnect(nvme_ctrl_t c);
+int nvme_disconnect_ctrl(nvme_ctrl_t c);
 
 /**
  * nvme_scan_ctrl() -
@@ -845,6 +845,12 @@ int nvme_ctrl_disconnect(nvme_ctrl_t c);
  * Return: 
  */
 nvme_ctrl_t nvme_scan_ctrl(nvme_root_t r, const char *name);
+
+/**
+ * @c:
+ *
+ */
+void nvme_rescan_ctrl(nvme_ctrl_t c);
 
 /**
  * nvme_init_ctrl() -

@@ -1047,6 +1047,13 @@ static int nvme_subsystem_scan_ctrl(struct nvme_subsystem *s, char *name)
 	return 0;
 }
 
+void nvme_rescan_ctrl(struct nvme_ctrl *c)
+{
+	nvme_subsystem_scan_namespaces(c->subsystem);
+	nvme_ctrl_scan_namespaces(c);
+	nvme_ctrl_scan_paths(c);
+}
+
 static int nvme_bytes_to_lba(nvme_ns_t n, off_t offset, size_t count,
 			    __u64 *lba, __u16 *nlb)
 {
