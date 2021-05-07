@@ -294,13 +294,51 @@ struct nvme_ns {
 }
 
 %extend nvme_ctrl {
-  nvme_ctrl(struct nvme_subsystem *subsys, const char *transport,
+  nvme_ctrl(const char *subsysnqn, const char *transport,
 	    const char *traddr, const char *host_traddr = NULL,
 	    const char *trsvcid = NULL) {
-    return nvme_lookup_ctrl(subsys, transport, traddr, host_traddr, trsvcid);
+    return nvme_create_ctrl(subsysnqn, transport, traddr, host_traddr, trsvcid);
   }
   ~nvme_ctrl() {
     nvme_free_ctrl($self);
+  }
+  void connect(struct nvme_host *h, int queue_size = 0,
+	       int nr_io_queues = 0, int reconnect_delay = 0,
+	       int ctrl_loss_tmo = 0, int keep_alive_tmo = 0,
+	       int nr_write_queues = 0, int nr_poll_queues = 0,
+	       int tos = 0, bool duplicate_connect = false,
+	       bool disable_sqflow = false, bool hdr_digest = false,
+	       bool data_digest = false, bool persistent = false) {
+    int ret;
+    const char *dev;
+    struct nvme_fabrics_config cfg = {
+      .queue_size = queue_size,
+      .nr_io_queues = nr_io_queues,
+      .reconnect_delay = reconnect_delay,
+      .ctrl_loss_tmo = ctrl_loss_tmo,
+      .keep_alive_tmo = keep_alive_tmo,
+      .nr_write_queues = nr_write_queues,
+      .nr_poll_queues = nr_poll_queues,
+      .tos = tos, .duplicate_connect = duplicate_connect,
+      .disable_sqflow = disable_sqflow,
+      .hdr_digest = hdr_digest,
+      .data_digest = data_digest,
+    };
+
+    dev = nvme_ctrl_get_name($self);
+    if (dev && !duplicate_connect) {
+      return;
+    }
+    ret = nvmf_add_ctrl(h, $self, &cfg, disable_sqflow);
+    if (ret < 0) {
+	return;
+    }
+  }
+  void rescan() {
+    nvme_rescan_ctrl($self);
+  }
+  void disconnect() {
+    nvme_disconnect_ctrl($self);
   }
   char *__str__() {
     static char tmp[1024];
