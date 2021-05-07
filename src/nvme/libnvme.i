@@ -102,7 +102,8 @@ static int ns_iter_err = 0;
 };
 
 struct nvme_root {
-  bool modified;
+  %immutable config_file;
+  char *config_file;
 };
 
 struct nvme_host {
@@ -113,31 +114,17 @@ struct nvme_host {
 };
 
 struct nvme_subsystem {
-  struct nvme_host *host;
   %immutable subsysnqn;
-  %immutable name;
+  %immutable model;
+  %immutable serial;
+  %immutable firmware;
   char *subsysnqn;
-  char *name;
-  char *sysfs_dir;
   char *model;
   char *serial;
   char *firmware;
 };
 
 struct nvme_ctrl {
-  struct nvme_subsystem *subsystem;
-
-  int fd;
-  char *name;
-  char *sysfs_dir;
-  char *address;
-  char *firmware;
-  char *model;
-  char *state;
-  char *numa_node;
-  char *queue_count;
-  char *serial;
-  char *sqsize;
   %immutable transport;
   %immutable subsysnqn;
   %immutable traddr;
@@ -148,35 +135,17 @@ struct nvme_ctrl {
   char *traddr;
   char *host_traddr;
   char *trsvcid;
-  bool discovered;
-  bool persistent;
-  struct nvme_fabrics_config cfg;
 };
 
 struct nvme_ns {
-	struct nvme_subsystem *subsystem;
-	struct nvme_ctrl *ctrl;
-
-	int fd;
   %immutable nsid;
-  %immutable name;
-	unsigned int nsid;
-	char *name;
-	char *sysfs_dir;
-
-	int lba_shift;
-	int lba_size;
-	int meta_size;
-	uint64_t lba_count;
-	uint64_t lba_util;
-
   %immutable eui64;
   %immutable nguid;
   %immutable uuid;
-	uint8_t eui64[8];
-	uint8_t nguid[16];
-	uint8_t uuid[16];
-	enum nvme_csi csi;
+  unsigned int nsid;
+  uint8_t eui64[8];
+  uint8_t nguid[16];
+  uint8_t uuid[16];
 };
 
 %extend nvme_root {
@@ -298,8 +267,16 @@ struct nvme_ns {
   struct nvme_ns *namespaces() {
     return nvme_subsystem_first_ns($self);
   }
+  %immutable name;
+  const char *name;
 }
- 
+
+%{
+  const char *nvme_subsystem_name_get(struct nvme_subsystem *s) {
+    return nvme_subsystem_get_name(s);
+  }
+%};
+
 %extend nvme_ctrl_iter {
   struct nvme_ctrl_iter *__iter__() {
     return $self;
@@ -340,7 +317,15 @@ struct nvme_ns {
   struct nvme_ns *namespaces() {
     return nvme_ctrl_first_ns($self);
   }
+  %immutable name;
+  const char *name;
 }
+
+%{
+  const char *nvme_ctrl_name_get(struct nvme_ctrl *c) {
+    return nvme_ctrl_get_name(c);
+  }
+%};
 
 %extend nvme_ns {
   nvme_ns(struct nvme_subsystem *s, unsigned int nsid) {
@@ -361,4 +346,12 @@ struct nvme_ns {
 				.pos = $self };
     return ret;
   }
+  %immutable name;
+  const char *name;
 }
+
+%{
+  const char *nvme_ns_name_get(struct nvme_ns *n) {
+    return nvme_ns_get_name(n);
+  }
+%};
