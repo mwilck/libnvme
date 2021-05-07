@@ -22,6 +22,31 @@
 static int host_iter_err = 0;
 static int subsys_iter_err = 0;
 static int ctrl_iter_err = 0;
+static int subsys_ns_iter_err = 0;
+
+struct nvme_ns {
+	struct list_node entry;
+	struct list_head paths;
+
+	struct nvme_subsystem *subsystem;
+	struct nvme_ctrl *ctrl;
+
+	int fd;
+	__u32 nsid;
+	char *name;
+	char *sysfs_dir;
+
+	int lba_shift;
+	int lba_size;
+	int meta_size;
+	uint64_t lba_count;
+	uint64_t lba_util;
+
+	uint8_t eui64[8];
+	uint8_t nguid[16];
+	uint8_t uuid[16];
+	enum nvme_csi csi;
+};
 
 struct nvme_ctrl {
 	struct list_node entry;
@@ -98,6 +123,11 @@ struct nvme_root {
     struct nvme_subsystem *subsystem;
     struct nvme_ctrl *pos;
   };
+
+  struct nvme_subsys_ns_iter {
+    struct nvme_subsystem *subsystem;
+    struct nvme_ns *pos;
+  };
 %}
 
 %exception nvme_host_iter::__next__ {
@@ -125,6 +155,16 @@ struct nvme_root {
   $action
   if (ctrl_iter_err) {
     ctrl_iter_err = 0;
+    PyErr_SetString(PyExc_StopIteration, "End of list");
+    return NULL;
+  }
+}
+
+%exception nvme_subsys_ns_iter::__next__ {
+  assert(!subsys_ns_iter_err);
+  $action
+  if (subsys_ns_iter_err) {
+    subsys_ns_iter_err = 0;
     PyErr_SetString(PyExc_StopIteration, "End of list");
     return NULL;
   }
@@ -183,6 +223,27 @@ struct nvme_ctrl {
   bool discovered;
   bool persistent;
   struct nvme_fabrics_config cfg;
+};
+
+struct nvme_ns {
+	struct nvme_subsystem *subsystem;
+	struct nvme_ctrl *ctrl;
+
+	int fd;
+	__u32 nsid;
+	char *name;
+	char *sysfs_dir;
+
+	int lba_shift;
+	int lba_size;
+	int meta_size;
+	uint64_t lba_count;
+	uint64_t lba_util;
+
+	uint8_t eui64[8];
+	uint8_t nguid[16];
+	uint8_t uuid[16];
+	enum nvme_csi csi;
 };
 
 %extend nvme_root {
@@ -260,6 +321,22 @@ struct nvme_ctrl {
   }
 }
 
+%extend nvme_subsys_ns_iter {
+  struct nvme_subsys_ns_iter *__iter__() {
+    return $self;
+  }
+  struct nvme_ns *__next__() {
+    struct nvme_ns *this = $self->pos;
+
+    if (!this) {
+      subsys_ns_iter_err = 1;
+      return NULL;
+    }
+    $self->pos = nvme_subsystem_next_ns($self->subsystem, this);
+    return this;
+  }
+}
+
 %extend nvme_subsystem {
   nvme_subsystem(struct nvme_host *host, const char *subsysnqn,
 		 const char *name = NULL) {
@@ -281,6 +358,9 @@ struct nvme_ctrl {
   }
   struct nvme_ctrl *ctrls() {
     return nvme_subsystem_first_ctrl($self);
+  }
+  struct nvme_ns *namespaces() {
+    return nvme_subsystem_first_ns($self);
   }
 }
  
@@ -318,6 +398,24 @@ struct nvme_ctrl {
   }
   struct nvme_ctrl_iter __iter__() {
     struct nvme_ctrl_iter ret = { .subsystem = nvme_ctrl_get_subsystem($self),
+				  .pos = $self };
+    return ret;
+  }
+  struct nvme_ns *namespaces() {
+    return nvme_ctrl_first_ns($self);
+  }
+}
+
+%extend nvme_ns {
+  char *__str__() {
+    static char tmp[1024];
+
+    sprintf(tmp, "nvme_ns(%d,%s,%s,%s)", $self->nsid, $self->eui64,
+	    $self->nguid, $self->uuid);
+    return tmp;
+  }
+  struct nvme_subsys_ns_iter __iter__() {
+    struct nvme_subsys_ns_iter ret = { .subsystem = nvme_ns_get_subsystem($self),
 				  .pos = $self };
     return ret;
   }
