@@ -82,20 +82,50 @@ struct nvme_root {
 %}
 
 %inline %{
-struct nvme_host_iter {
+  struct nvme_host_iter {
     struct nvme_root *root;
     struct nvme_host *pos;
-};
+  };
+
+  struct nvme_subsystem_iter {
+    struct nvme_host *host;
+    struct nvme_subsystem *pos;
+  };
+
+  struct nvme_ctrl_iter {
+    struct nvme_subsystem *subsystem;
+    struct nvme_ctrl *pos;
+  };
 %}
 
 %exception nvme_host_iter::__next__ {
   assert(!myErr);
   $action
-    if (myErr) {
-      myErr = 0;
-      PyErr_SetString(PyExc_StopIteration, "End of list");
-      return NULL;
-    }
+  if (myErr) {
+    myErr = 0;
+    PyErr_SetString(PyExc_StopIteration, "End of list");
+    return NULL;
+  }
+}
+
+%exception nvme_subsystem_iter::__next__ {
+  assert(!myErr);
+  $action
+  if (myErr) {
+    myErr = 0;
+    PyErr_SetString(PyExc_StopIteration, "End of list");
+    return NULL;
+  }
+}
+
+%exception nvme_ctrl_iter::__next__ {
+  assert(!myErr);
+  $action
+  if (myErr) {
+    myErr = 0;
+    PyErr_SetString(PyExc_StopIteration, "End of list");
+    return NULL;
+  }
 }
 
 #include "tree.h"
@@ -110,64 +140,7 @@ struct nvme_host {
 	char *hostid;
 };
 
-%extend nvme_root {
-  nvme_root(const char *config_file = NULL) {
-    return nvme_scan(config_file);
-  }
-  ~nvme_root() {
-    nvme_free_tree($self);
-  }
-  struct nvme_host *hosts() {
-    return nvme_first_host($self);
-  }
-}
-
-%extend nvme_host_iter {
-  struct nvme_host_iter *__iter__() {
-    return $self;
-  }
-    
-  struct nvme_host *__next__() {
-    struct nvme_host *this = $self->pos;
-
-    if (!this) {
-      $self->root = NULL;
-      myErr = 1;
-      return NULL;
-    }
-    $self->pos = nvme_next_host($self->root, this);
-    return this;
-  }
-}
-
-%extend nvme_host {
-  nvme_host(struct nvme_root *r, const char *hostnqn, const char *hostid) {
-    return nvme_lookup_host(r, hostnqn, hostid);
-  }
-  ~nvme_host() {
-    nvme_free_host($self);
-  }
-  char *__str__() {
-    static char tmp[2048];
-
-    sprintf(tmp, "nvme_host(%s,%s)", $self->hostnqn, $self->hostid);
-    return tmp;
-  }
-  struct nvme_host_iter __iter__() {
-    struct nvme_host_iter ret = { .root = nvme_host_get_root($self),
-				     .pos = $self };
-    return ret;
-  }
-}
-
-%inline %{
-  struct nvme_subsystem_iter {
-    nvme_subsystem_t list;
-    nvme_subsystem_t pos;
-  };
-%}
-
-typedef struct nvme_subsystem {
+struct nvme_subsystem {
 	struct nvme_host *host;
 
 	char *name;
@@ -176,36 +149,9 @@ typedef struct nvme_subsystem {
 	char *model;
 	char *serial;
 	char *firmware;
-} nvme_subsystem_t;
-
-%extend nvme_subsystem_iter {
-  struct nvme_subsystem_iter *__iter__() {
-    return $self;
-  }
-  nvme_subsystem_t next() {
-    if ($self->pos) {
-      return nvme_next_subsystem(nvme_subsystem_get_host($self->list),
-				   $self->pos);
-    }
-    return $self->list;
-  }
-}
-
-%extend nvme_subsystem {
-  struct nvme_subsystem_iter __iter__() {
-    struct nvme_subsystem_iter ret = { $self, NULL };
-    return ret;
-  }
-}
-
-%inline %{
-struct nvme_ctrl_iter {
-nvme_ctrl_t list;
-nvme_ctrl_t pos;
 };
-%}
 
-typedef struct nvme_ctrl {
+struct nvme_ctrl {
 	struct nvme_subsystem *subsystem;
 
 	int fd;
@@ -229,24 +175,136 @@ typedef struct nvme_ctrl {
 	bool discovered;
 	bool persistent;
 	struct nvme_fabrics_config cfg;
-} nvme_ctrl_t;
+};
 
+%extend nvme_root {
+  nvme_root(const char *config_file = NULL) {
+    return nvme_scan(config_file);
+  }
+  ~nvme_root() {
+    nvme_free_tree($self);
+  }
+  struct nvme_host *hosts() {
+    return nvme_first_host($self);
+  }
+}
+
+%extend nvme_host_iter {
+  struct nvme_host_iter *__iter__() {
+    return $self;
+  }
+    
+  struct nvme_host *__next__() {
+    struct nvme_host *this = $self->pos;
+
+    if (!this) {
+      myErr = 1;
+      return NULL;
+    }
+    $self->pos = nvme_next_host($self->root, this);
+    return this;
+  }
+}
+
+%extend nvme_host {
+  nvme_host(struct nvme_root *r, const char *hostnqn,
+	    const char *hostid = NULL) {
+    return nvme_lookup_host(r, hostnqn, hostid);
+  }
+  ~nvme_host() {
+    nvme_free_host($self);
+  }
+  char *__str__() {
+    static char tmp[2048];
+
+    sprintf(tmp, "nvme_host(%s,%s)", $self->hostnqn, $self->hostid);
+    return tmp;
+  }
+  struct nvme_host_iter __iter__() {
+    struct nvme_host_iter ret = { .root = nvme_host_get_root($self),
+				     .pos = $self };
+    return ret;
+  }
+  struct nvme_subsystem *subsystems() {
+    return nvme_first_subsystem($self);
+  }
+}
+
+%extend nvme_subsystem_iter {
+  struct nvme_subsystem_iter *__iter__() {
+    return $self;
+  }
+  struct nvme_subsystem *__next__() {
+    struct nvme_subsystem *this = $self->pos;
+
+    if (!this) {
+      myErr = 1;
+      return NULL;
+    }
+    $self->pos = nvme_next_subsystem($self->host, this);
+    return this;
+  }
+}
+
+%extend nvme_subsystem {
+  nvme_subsystem(struct nvme_host *host, const char *subsysnqn,
+		 const char *name = NULL) {
+    return nvme_lookup_subsystem(host, name, subsysnqn);
+  }
+  ~nvme_subsystem() {
+    nvme_free_subsystem($self);
+  }
+  char *__str__() {
+    static char tmp[1024];
+
+    sprintf(tmp, "nvme_subsystem(%s,%s)", $self->name,$self->subsysnqn);
+    return tmp;
+  }
+  struct nvme_subsystem_iter __iter__() {
+    struct nvme_subsystem_iter ret = { .host = nvme_subsystem_get_host($self),
+				       .pos = $self };
+    return ret;
+  }
+  struct nvme_ctrl *ctrls() {
+    return nvme_subsystem_first_ctrl($self);
+  }
+}
+ 
 %extend nvme_ctrl_iter {
   struct nvme_ctrl_iter *__iter__() {
     return $self;
   }
-  nvme_ctrl_t next() {
-    if ($self->pos) {
-      return nvme_subsystem_next_ctrl(nvme_ctrl_get_subsystem($self->list),
-				      $self->pos);
+  struct nvme_ctrl *__next__() {
+    struct nvme_ctrl *this = $self->pos;
+    
+    if (!this) {
+      myErr = 1;
+      return NULL;
     }
-    return $self->list;
+    $self->pos = nvme_subsystem_next_ctrl($self->subsystem, this);
+    return this;
   }
 }
 
 %extend nvme_ctrl {
+  nvme_ctrl(struct nvme_subsystem *subsys, const char *transport,
+	    const char *traddr, const char *host_traddr = NULL,
+	    const char *trsvcid = NULL) {
+    return nvme_lookup_ctrl(subsys, transport, traddr, host_traddr, trsvcid);
+  }
+  ~nvme_ctrl() {
+    nvme_free_ctrl($self);
+  }
+  char *__str__() {
+    static char tmp[1024];
+
+    sprintf(tmp, "nvme_ctrl(%s,%s,%s,%s)", $self->transport, $self->traddr,
+	    $self->host_traddr, $self->trsvcid);
+    return tmp;
+  }
   struct nvme_ctrl_iter __iter__() {
-    struct nvme_ctrl_iter ret = { $self, NULL };
+    struct nvme_ctrl_iter ret = { .subsystem = nvme_ctrl_get_subsystem($self),
+				  .pos = $self };
     return ret;
   }
 }
@@ -259,12 +317,6 @@ struct nvme_subsystem *nvme_lookup_subsystem(struct nvme_host *h,
 					     const char *subsysnqn);
 
 struct nvme_ctrl *nvme_lookup_ctrl(struct nvme_subsystem *s,
-				   const char *transport,
-				   const char *traddr,
-				   const char *host_traddr = NULL,
-				   const char *trsvcid = NULL);
-
-struct nvme_ctrl *nvme_create_ctrl(const char *subsysnqn,
 				   const char *transport,
 				   const char *traddr,
 				   const char *host_traddr = NULL,
