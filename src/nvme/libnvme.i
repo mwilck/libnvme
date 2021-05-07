@@ -32,7 +32,7 @@ struct nvme_ns {
 	struct nvme_ctrl *ctrl;
 
 	int fd;
-	__u32 nsid;
+	unsigned int nsid;
 	char *name;
 	char *sysfs_dir;
 
@@ -173,6 +173,14 @@ struct nvme_root {
 #include "tree.h"
 #include "fabrics.h"
 
+%typemap(out) uint8_t [8] {
+  $result = PyBytes_FromStringAndSize((char *)$1, 8);
+};
+
+%typemap(out) uint8_t [16] {
+  $result = PyBytes_FromStringAndSize((char *)$1, 16);
+};
+
 struct nvme_root {
   bool modified;
 };
@@ -230,7 +238,7 @@ struct nvme_ns {
 	struct nvme_ctrl *ctrl;
 
 	int fd;
-	__u32 nsid;
+	unsigned int nsid;
 	char *name;
 	char *sysfs_dir;
 
@@ -240,6 +248,9 @@ struct nvme_ns {
 	uint64_t lba_count;
 	uint64_t lba_util;
 
+  %immutable eui64;
+  %immutable nguid;
+  %immutable uuid;
 	uint8_t eui64[8];
 	uint8_t nguid[16];
 	uint8_t uuid[16];
@@ -401,17 +412,19 @@ struct nvme_ns {
 				  .pos = $self };
     return ret;
   }
-  struct nvme_ns *namespaces() {
-    return nvme_ctrl_first_ns($self);
-  }
 }
 
 %extend nvme_ns {
+  nvme_ns(struct nvme_subsystem *s, unsigned int nsid) {
+    return nvme_subsystem_lookup_namespace(s, nsid);
+  }
+  ~nvme_ns() {
+    nvme_free_ns($self);
+  }
   char *__str__() {
     static char tmp[1024];
 
-    sprintf(tmp, "nvme_ns(%d,%s,%s,%s)", $self->nsid, $self->eui64,
-	    $self->nguid, $self->uuid);
+    sprintf(tmp, "nvme_ns(%u)", $self->nsid);
     return tmp;
   }
   struct nvme_subsys_ns_iter __iter__() {
