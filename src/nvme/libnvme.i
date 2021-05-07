@@ -132,49 +132,52 @@ struct nvme_root {
 #include "fabrics.h"
 
 struct nvme_root {
-	bool modified;
+  bool modified;
 };
 
 struct nvme_host {
-	char *hostnqn;
-	char *hostid;
+  %immutable;
+  char *hostnqn;
+  char *hostid;
+  %mutable;
 };
 
 struct nvme_subsystem {
-	struct nvme_host *host;
-
-	char *name;
-	char *sysfs_dir;
-	char *subsysnqn;
-	char *model;
-	char *serial;
-	char *firmware;
+  struct nvme_host *host;
+  %immutable;
+  char *subsysnqn;
+  char *name;
+  %mutable;
+  char *sysfs_dir;
+  char *model;
+  char *serial;
+  char *firmware;
 };
 
 struct nvme_ctrl {
-	struct nvme_subsystem *subsystem;
+  struct nvme_subsystem *subsystem;
 
-	int fd;
-	char *name;
-	char *sysfs_dir;
-	char *address;
-	char *firmware;
-	char *model;
-	char *state;
-	char *numa_node;
-	char *queue_count;
-	char *serial;
-	char *sqsize;
-	char *hostnqn;
-	char *hostid;
-	char *transport;
-	char *subsysnqn;
-	char *traddr;
-	char *trsvcid;
-	char *host_traddr;
-	bool discovered;
-	bool persistent;
-	struct nvme_fabrics_config cfg;
+  int fd;
+  char *name;
+  char *sysfs_dir;
+  char *address;
+  char *firmware;
+  char *model;
+  char *state;
+  char *numa_node;
+  char *queue_count;
+  char *serial;
+  char *sqsize;
+  %immutable;
+  char *transport;
+  char *subsysnqn;
+  char *traddr;
+  char *trsvcid;
+  char *host_traddr;
+  %mutable;
+  bool discovered;
+  bool persistent;
+  struct nvme_fabrics_config cfg;
 };
 
 %extend nvme_root {
@@ -186,6 +189,12 @@ struct nvme_ctrl {
   }
   struct nvme_host *hosts() {
     return nvme_first_host($self);
+  }
+  void refresh_topology() {
+    nvme_refresh_topology($self);
+  }
+  void update_config() {
+    nvme_update_config($self);
   }
 }
 
@@ -308,27 +317,3 @@ struct nvme_ctrl {
     return ret;
   }
 }
-
-struct nvme_host *nvme_lookup_host(struct nvme_root *r,
-				   const char *hostnqn = NULL,
-				   const char *hostid = NULL);
-struct nvme_subsystem *nvme_lookup_subsystem(struct nvme_host *h,
-					     const char *name,
-					     const char *subsysnqn);
-
-struct nvme_ctrl *nvme_lookup_ctrl(struct nvme_subsystem *s,
-				   const char *transport,
-				   const char *traddr,
-				   const char *host_traddr = NULL,
-				   const char *trsvcid = NULL);
-
-struct nvme_host *nvme_default_host(struct nvme_root *r);
-struct nvme_root *nvme_scan(const char *config_file = NULL);
-void nvme_free_tree(struct nvme_root *r);
-
-void nvme_free_ctrl(struct nvme_ctrl *c);
-int nvme_ctrl_disconnect(struct nvme_ctrl *c);
-void nvme_unlink_ctrl(struct nvme_ctrl *c);
-void nvme_refresh_topology(struct nvme_root *r);
-void nvme_reset_topology(struct nvme_root *r);
-int nvme_update_config(struct nvme_root *r, const char *config_file);
