@@ -18,93 +18,12 @@
 #include <ccan/list/list.h>
 #include "tree.h"
 #include "fabrics.h"
+#include "private.h"
 
 static int host_iter_err = 0;
 static int subsys_iter_err = 0;
 static int ctrl_iter_err = 0;
 static int ns_iter_err = 0;
-
-struct nvme_ns {
-	struct list_node entry;
-	struct list_head paths;
-
-	struct nvme_subsystem *subsystem;
-	struct nvme_ctrl *ctrl;
-
-	int fd;
-	unsigned int nsid;
-	char *name;
-	char *sysfs_dir;
-
-	int lba_shift;
-	int lba_size;
-	int meta_size;
-	uint64_t lba_count;
-	uint64_t lba_util;
-
-	uint8_t eui64[8];
-	uint8_t nguid[16];
-	uint8_t uuid[16];
-	enum nvme_csi csi;
-};
-
-struct nvme_ctrl {
-	struct list_node entry;
-	struct list_head paths;
-	struct list_head namespaces;
-
-	struct nvme_subsystem *subsystem;
-
-	int fd;
-	char *name;
-	char *sysfs_dir;
-	char *address;
-	char *firmware;
-	char *model;
-	char *state;
-	char *numa_node;
-	char *queue_count;
-	char *serial;
-	char *sqsize;
-	char *hostnqn;
-	char *hostid;
-	char *transport;
-	char *subsysnqn;
-	char *traddr;
-	char *trsvcid;
-	char *host_traddr;
-	bool discovered;
-	bool persistent;
-	struct nvme_fabrics_config cfg;
-};
-
-struct nvme_subsystem {
-	struct list_node entry;
-	struct list_head ctrls;
-	struct list_head namespaces;
-	struct nvme_host *host;
-
-	char *name;
-	char *sysfs_dir;
-	char *subsysnqn;
-	char *model;
-	char *serial;
-	char *firmware;
-};
-
-struct nvme_host {
-	struct list_node entry;
-	struct list_head subsystems;
-	struct nvme_root *root;
-
-	char *hostnqn;
-	char *hostid;
-};
-
-struct nvme_root {
-	struct list_head hosts;
-	bool modified;
-};
 
 %}
 
