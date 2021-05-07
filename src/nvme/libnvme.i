@@ -22,7 +22,7 @@
 static int host_iter_err = 0;
 static int subsys_iter_err = 0;
 static int ctrl_iter_err = 0;
-static int subsys_ns_iter_err = 0;
+static int ns_iter_err = 0;
 
 struct nvme_ns {
 	struct list_node entry;
@@ -124,8 +124,9 @@ struct nvme_root {
     struct nvme_ctrl *pos;
   };
 
-  struct nvme_subsys_ns_iter {
+  struct nvme_ns_iter {
     struct nvme_subsystem *subsystem;
+    struct nvme_ctrl *ctrl;
     struct nvme_ns *pos;
   };
 %}
@@ -160,11 +161,11 @@ struct nvme_root {
   }
 }
 
-%exception nvme_subsys_ns_iter::__next__ {
-  assert(!subsys_ns_iter_err);
+%exception nvme_ns_iter::__next__ {
+  assert(!ns_iter_err);
   $action
-  if (subsys_ns_iter_err) {
-    subsys_ns_iter_err = 0;
+  if (ns_iter_err) {
+    ns_iter_err = 0;
     PyErr_SetString(PyExc_StopIteration, "End of list");
     return NULL;
   }
@@ -238,6 +239,8 @@ struct nvme_ns {
 	struct nvme_ctrl *ctrl;
 
 	int fd;
+  %immutable nsid;
+  %immutable name;
 	unsigned int nsid;
 	char *name;
 	char *sysfs_dir;
@@ -332,18 +335,21 @@ struct nvme_ns {
   }
 }
 
-%extend nvme_subsys_ns_iter {
-  struct nvme_subsys_ns_iter *__iter__() {
+%extend nvme_ns_iter {
+  struct nvme_ns_iter *__iter__() {
     return $self;
   }
   struct nvme_ns *__next__() {
     struct nvme_ns *this = $self->pos;
 
     if (!this) {
-      subsys_ns_iter_err = 1;
+      ns_iter_err = 1;
       return NULL;
     }
-    $self->pos = nvme_subsystem_next_ns($self->subsystem, this);
+    if ($self->ctrl)
+      $self->pos = nvme_ctrl_next_ns($self->ctrl, this);
+    else
+      $self->pos = nvme_subsystem_next_ns($self->subsystem, this);
     return this;
   }
 }
@@ -412,6 +418,9 @@ struct nvme_ns {
 				  .pos = $self };
     return ret;
   }
+  struct nvme_ns *namespaces() {
+    return nvme_ctrl_first_ns($self);
+  }
 }
 
 %extend nvme_ns {
@@ -427,9 +436,10 @@ struct nvme_ns {
     sprintf(tmp, "nvme_ns(%u)", $self->nsid);
     return tmp;
   }
-  struct nvme_subsys_ns_iter __iter__() {
-    struct nvme_subsys_ns_iter ret = { .subsystem = nvme_ns_get_subsystem($self),
-				  .pos = $self };
+  struct nvme_ns_iter __iter__() {
+    struct nvme_ns_iter ret = { .ctrl = nvme_ns_get_ctrl($self),
+				.subsystem = nvme_ns_get_subsystem($self),
+				.pos = $self };
     return ret;
   }
 }
