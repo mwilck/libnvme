@@ -24,7 +24,7 @@ static int host_iter_err = 0;
 static int subsys_iter_err = 0;
 static int ctrl_iter_err = 0;
 static int ns_iter_err = 0;
-
+ static int connect_err = 0;
 %}
 
 %inline %{
@@ -87,6 +87,17 @@ static int ns_iter_err = 0;
     ns_iter_err = 0;
     PyErr_SetString(PyExc_StopIteration, "End of list");
     return NULL;
+  }
+}
+
+%exception nvme_ns::connect {
+  $action
+  if (connect_err == 1) {
+    connect_err = 0;
+    PyErr_SetString(PyExc_AttributeError, "Existing controller connection");
+  } else if (connect_err) {
+    connect_err = 0;
+    PyErr_SetString(PyExc_RuntimeError,"Connect failed");
   }
 }
 
@@ -327,11 +338,13 @@ struct nvme_ns {
 
     dev = nvme_ctrl_get_name($self);
     if (dev && !duplicate_connect) {
+      connect_err = 1;
       return;
     }
     ret = nvmf_add_ctrl(h, $self, &cfg, disable_sqflow);
     if (ret < 0) {
-	return;
+      connect_err = 2;
+      return;
     }
   }
   void rescan() {
