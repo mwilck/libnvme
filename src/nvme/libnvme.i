@@ -14,9 +14,12 @@
 %allowexception;
 
 %{
+#include <assert.h>
 #include <ccan/list/list.h>
 #include "tree.h"
 #include "fabrics.h"
+
+static int myErr = 0;
 
 struct nvme_ctrl {
 	struct list_node entry;
@@ -76,12 +79,24 @@ struct nvme_root {
 	bool modified;
 };
 
+%}
+
+%inline %{
 struct nvme_host_iter {
     struct nvme_root *root;
     struct nvme_host *pos;
 };
-
 %}
+
+%exception nvme_host_iter::__next__ {
+  assert(!myErr);
+  $action
+    if (myErr) {
+      myErr = 0;
+      PyErr_SetString(PyExc_StopIteration, "End of list");
+      return NULL;
+    }
+}
 
 #include "tree.h"
 #include "fabrics.h"
@@ -89,11 +104,6 @@ struct nvme_host_iter {
 struct nvme_root {
 	bool modified;
 };
-
-struct nvme_host_iter {
-    struct nvme_root *root;
-    struct nvme_host *pos;
-  };
 
 struct nvme_host {
 	char *hostnqn;
@@ -107,6 +117,9 @@ struct nvme_host {
   ~nvme_root() {
     nvme_free_tree($self);
   }
+  struct nvme_host *hosts() {
+    return nvme_first_host($self);
+  }
 }
 
 %extend nvme_host_iter {
@@ -118,18 +131,12 @@ struct nvme_host {
     struct nvme_host *this = $self->pos;
 
     if (!this) {
-      PyErr_SetString(PyExc_StopIteration, "End of hosts");
+      $self->root = NULL;
+      myErr = 1;
       return NULL;
     }
     $self->pos = nvme_next_host($self->root, this);
     return this;
-  }
-}
-
-%extend nvme_root {
-  struct nvme_host_iter hosts() {
-    struct nvme_host_iter ret = {$self, nvme_first_host($self)};
-    return ret;
   }
 }
 
@@ -145,6 +152,11 @@ struct nvme_host {
 
     sprintf(tmp, "nvme_host(%s,%s)", $self->hostnqn, $self->hostid);
     return tmp;
+  }
+  struct nvme_host_iter __iter__() {
+    struct nvme_host_iter ret = { .root = nvme_host_get_root($self),
+				     .pos = $self };
+    return ret;
   }
 }
 
