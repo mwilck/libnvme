@@ -19,7 +19,9 @@
 #include "tree.h"
 #include "fabrics.h"
 
-static int myErr = 0;
+static int host_iter_err = 0;
+static int subsys_iter_err = 0;
+static int ctrl_iter_err = 0;
 
 struct nvme_ctrl {
 	struct list_node entry;
@@ -99,30 +101,30 @@ struct nvme_root {
 %}
 
 %exception nvme_host_iter::__next__ {
-  assert(!myErr);
+  assert(!host_iter_err);
   $action
-  if (myErr) {
-    myErr = 0;
+  if (host_iter_err) {
+    host_iter_err = 0;
     PyErr_SetString(PyExc_StopIteration, "End of list");
     return NULL;
   }
 }
 
 %exception nvme_subsystem_iter::__next__ {
-  assert(!myErr);
+  assert(!subsys_iter_err);
   $action
-  if (myErr) {
-    myErr = 0;
+  if (subsys_iter_err) {
+    subsys_iter_err = 0;
     PyErr_SetString(PyExc_StopIteration, "End of list");
     return NULL;
   }
 }
 
 %exception nvme_ctrl_iter::__next__ {
-  assert(!myErr);
+  assert(!ctrl_iter_err);
   $action
-  if (myErr) {
-    myErr = 0;
+  if (ctrl_iter_err) {
+    ctrl_iter_err = 0;
     PyErr_SetString(PyExc_StopIteration, "End of list");
     return NULL;
   }
@@ -207,7 +209,7 @@ struct nvme_ctrl {
     struct nvme_host *this = $self->pos;
 
     if (!this) {
-      myErr = 1;
+      host_iter_err = 1;
       return NULL;
     }
     $self->pos = nvme_next_host($self->root, this);
@@ -247,7 +249,7 @@ struct nvme_ctrl {
     struct nvme_subsystem *this = $self->pos;
 
     if (!this) {
-      myErr = 1;
+      subsys_iter_err = 1;
       return NULL;
     }
     $self->pos = nvme_next_subsystem($self->host, this);
@@ -287,7 +289,7 @@ struct nvme_ctrl {
     struct nvme_ctrl *this = $self->pos;
     
     if (!this) {
-      myErr = 1;
+      ctrl_iter_err = 1;
       return NULL;
     }
     $self->pos = nvme_subsystem_next_ctrl($self->subsystem, this);
