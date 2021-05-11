@@ -362,11 +362,16 @@ struct nvme_ns {
   }
   %immutable name;
   const char *name;
+  %immutable host;
+  struct nvme_host *host;
 }
 
 %{
   const char *nvme_subsystem_name_get(struct nvme_subsystem *s) {
     return nvme_subsystem_get_name(s);
+  }
+  struct nvme_host *nvme_subsystem_host_get(struct nvme_subsystem *s) {
+    return nvme_subsystem_get_host(s);
   }
 %};
 
@@ -410,8 +415,8 @@ struct nvme_ns {
       return;
     }
   }
-  const char *connected() {
-    return nvme_ctrl_get_name($self);
+  bool connected() {
+    return nvme_ctrl_get_name($self) != NULL;
   }
   void rescan() {
     nvme_rescan_ctrl($self);
@@ -446,11 +451,16 @@ struct nvme_ns {
   }
   %immutable name;
   const char *name;
+  %immutable subsystem;
+  struct nvme_subsystem *subsystem;
 }
 
 %{
   const char *nvme_ctrl_name_get(struct nvme_ctrl *c) {
     return nvme_ctrl_get_name(c);
+  }
+  struct nvme_subsystem *nvme_ctrl_subsystem_get(struct nvme_ctrl *c) {
+    return nvme_ctrl_get_subsystem(c);
   }
 %};
 
