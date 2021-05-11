@@ -24,7 +24,8 @@ static int host_iter_err = 0;
 static int subsys_iter_err = 0;
 static int ctrl_iter_err = 0;
 static int ns_iter_err = 0;
- static int connect_err = 0;
+static int connect_err = 0;
+static int discover_err = 0;
 %}
 
 %inline %{
@@ -90,14 +91,22 @@ static int ns_iter_err = 0;
   }
 }
 
-%exception nvme_ns::connect {
+%exception nvme_ctrl::connect {
   $action
   if (connect_err == 1) {
     connect_err = 0;
-    PyErr_SetString(PyExc_AttributeError, "Existing controller connection");
+    SWIG_exception(SWIG_AttributeError, "Existing controller connection");
   } else if (connect_err) {
     connect_err = 0;
-    PyErr_SetString(PyExc_RuntimeError,"Connect failed");
+    SWIG_exception(SWIG_RuntimeError, "Connect failed");
+  }
+}
+
+%exception nvme_ctrl::discover {
+  $action
+  if (discover_err) {
+    discover_err = 0;
+    SWIG_exception(SWIG_RuntimeError,"Discover failed");
   }
 }
 
@@ -112,6 +121,40 @@ static int ns_iter_err = 0;
   $result = PyBytes_FromStringAndSize((char *)$1, 16);
 };
 
+%typemap(out) struct nvmf_discovery_log * {
+  struct nvmf_discovery_log *log = $1;
+  int numrec = log? log->numrec : 0, i;
+  PyObject *obj = PyList_New(numrec);
+  if (!obj)
+    return NULL;
+  for (i = 0; i < numrec; i++) {
+    struct nvmf_disc_log_entry *e = &log->entries[i];
+    PyObject *entry = PyDict_New(), *val;
+
+    val = PyLong_FromLong(e->trtype);
+    PyDict_SetItemString(entry, "trtype", val);
+    val = PyLong_FromLong(e->adrfam);
+    PyDict_SetItemString(entry, "adrfam", val);
+    val = PyUnicode_FromString(e->traddr);
+    PyDict_SetItemString(entry, "traddr", val);
+    val = PyUnicode_FromString(e->trsvcid);
+    PyDict_SetItemString(entry, "trsvcid", val);
+    val = PyUnicode_FromString(e->subnqn);
+    PyDict_SetItemString(entry, "subnqn", val);
+    val = PyLong_FromLong(e->subtype);
+    PyDict_SetItemString(entry, "subtype", val);
+    val = PyLong_FromLong(e->treq);
+    PyDict_SetItemString(entry, "treq", val);
+    val = PyLong_FromLong(e->portid);
+    PyDict_SetItemString(entry, "portid", val);
+    val = PyLong_FromLong(e->cntlid);
+    PyDict_SetItemString(entry, "cntlid", val);
+    val = PyLong_FromLong(e->asqsz);
+    PyDict_SetItemString(entry, "asqsz", val);
+    PyList_SetItem(obj, i, entry);
+  }
+  $result = obj;
+ };
 struct nvme_root {
   %immutable config_file;
   char *config_file;
@@ -195,8 +238,10 @@ struct nvme_ns {
 }
 
 %extend nvme_host {
-  nvme_host(struct nvme_root *r, const char *hostnqn,
+  nvme_host(struct nvme_root *r, const char *hostnqn = NULL,
 	    const char *hostid = NULL) {
+    if (!hostnqn)
+      return nvme_default_host(r);
     return nvme_lookup_host(r, hostnqn, hostid);
   }
   ~nvme_host() {
@@ -306,7 +351,7 @@ struct nvme_ns {
 
 %extend nvme_ctrl {
   nvme_ctrl(const char *subsysnqn, const char *transport,
-	    const char *traddr, const char *host_traddr = NULL,
+	    const char *traddr = NULL, const char *host_traddr = NULL,
 	    const char *trsvcid = NULL) {
     return nvme_create_ctrl(subsysnqn, transport, traddr, host_traddr, trsvcid);
   }
@@ -315,11 +360,13 @@ struct nvme_ns {
   }
   void connect(struct nvme_host *h, int queue_size = 0,
 	       int nr_io_queues = 0, int reconnect_delay = 0,
-	       int ctrl_loss_tmo = 0, int keep_alive_tmo = 0,
+	       int ctrl_loss_tmo = NVMF_DEF_CTRL_LOSS_TMO,
+	       int keep_alive_tmo = 0,
 	       int nr_write_queues = 0, int nr_poll_queues = 0,
-	       int tos = 0, bool duplicate_connect = false,
+	       int tos = -1, bool duplicate_connect = false,
 	       bool disable_sqflow = false, bool hdr_digest = false,
-	       bool data_digest = false, bool persistent = false) {
+	       bool data_digest = false, bool persistent = false,
+	       bool verbose = false) {
     int ret;
     const char *dev;
     struct nvme_fabrics_config cfg = {
@@ -334,6 +381,7 @@ struct nvme_ns {
       .disable_sqflow = disable_sqflow,
       .hdr_digest = hdr_digest,
       .data_digest = data_digest,
+      .verbose = verbose,
     };
 
     dev = nvme_ctrl_get_name($self);
@@ -347,11 +395,24 @@ struct nvme_ns {
       return;
     }
   }
+  const char *connected() {
+    return nvme_ctrl_get_name($self);
+  }
   void rescan() {
     nvme_rescan_ctrl($self);
   }
   void disconnect() {
     nvme_disconnect_ctrl($self);
+  }
+  struct nvmf_discovery_log *discover(int max_retries = 6) {
+    struct nvmf_discovery_log *logp = NULL;
+    int ret = 0;
+    ret = nvmf_get_discovery_log($self, &logp, max_retries);
+    if (ret < 0) {
+      discover_err = 1;
+      return NULL;
+    }
+    return logp;
   }
   char *__str__() {
     static char tmp[1024];
