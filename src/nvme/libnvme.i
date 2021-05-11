@@ -452,6 +452,8 @@ struct nvme_ns {
   const char *name;
   %immutable subsystem;
   struct nvme_subsystem *subsystem;
+  %immutable state;
+  const char *state;
 }
 
 %{
@@ -460,6 +462,9 @@ struct nvme_ns {
   }
   struct nvme_subsystem *nvme_ctrl_subsystem_get(struct nvme_ctrl *c) {
     return nvme_ctrl_get_subsystem(c);
+  }
+  const char *nvme_ctrl_state_get(struct nvme_ctrl *c) {
+    return nvme_ctrl_get_state(c);
   }
 %};
 
