@@ -113,6 +113,43 @@ static int discover_err = 0;
 #include "tree.h"
 #include "fabrics.h"
 
+%typemap(in) struct nvme_fabrics_config * ($*1_type temp) {
+  Py_ssize_t pos = 0;
+  PyObject *key, *value;
+  char *keystr;
+  memset(&temp, 0, sizeof(struct nvme_fabrics_config));
+  temp.tos = -1;
+  temp.ctrl_loss_tmo = NVMF_DEF_CTRL_LOSS_TMO;
+  while (PyDict_Next($input, &pos, &key, &value)) {
+    keystr = PyString_AsString(key);
+    if (!keystr)
+      continue;
+    if (!strcmp(keystr, "nr_io_queues"))
+      temp.nr_io_queues = PyLong_AsLong(value);
+    if (!strcmp(keystr, "reconnect_delay"))
+      temp.reconnect_delay = PyLong_AsLong(value);
+    if (!strcmp(keystr, "ctrl_loss_tmo"))
+      temp.ctrl_loss_tmo = PyLong_AsLong(value);
+    if (!strcmp(keystr, "keep_alive_tmo"))
+      temp.keep_alive_tmo = PyLong_AsLong(value);
+    if (!strcmp(keystr, "nr_write_queues"))
+      temp.nr_write_queues = PyLong_AsLong(value);
+    if (!strcmp(keystr, "nr_poll_queues"))
+      temp.nr_poll_queues = PyLong_AsLong(value);
+    if (!strcmp(keystr, "tos"))
+      temp.tos = PyLong_AsLong(value);
+    if (!strcmp(keystr, "duplicate_connect"))
+      temp.duplicate_connect = PyLong_AsLong(value);
+    if (!strcmp(keystr, "disable_sqflow"))
+      temp.disable_sqflow = PyLong_AsLong(value);
+    if (!strcmp(keystr, "hdr_digest"))
+      temp.hdr_digest = PyLong_AsLong(value);
+    if (!strcmp(keystr, "data_digest"))
+      temp.data_digest = PyLong_AsLong(value);
+  }
+  $1 = &temp;
+ };
+
 %typemap(out) uint8_t [8] {
   $result = PyBytes_FromStringAndSize((char *)$1, 8);
 };
@@ -358,38 +395,16 @@ struct nvme_ns {
   ~nvme_ctrl() {
     nvme_free_ctrl($self);
   }
-  void connect(struct nvme_host *h, int queue_size = 0,
-	       int nr_io_queues = 0, int reconnect_delay = 0,
-	       int ctrl_loss_tmo = NVMF_DEF_CTRL_LOSS_TMO,
-	       int keep_alive_tmo = 0,
-	       int nr_write_queues = 0, int nr_poll_queues = 0,
-	       int tos = -1, bool duplicate_connect = false,
-	       bool disable_sqflow = false, bool hdr_digest = false,
-	       bool data_digest = false, bool persistent = false,
-	       bool verbose = false) {
+  void connect(struct nvme_host *h, struct nvme_fabrics_config *cfg = NULL) {
     int ret;
     const char *dev;
-    struct nvme_fabrics_config cfg = {
-      .queue_size = queue_size,
-      .nr_io_queues = nr_io_queues,
-      .reconnect_delay = reconnect_delay,
-      .ctrl_loss_tmo = ctrl_loss_tmo,
-      .keep_alive_tmo = keep_alive_tmo,
-      .nr_write_queues = nr_write_queues,
-      .nr_poll_queues = nr_poll_queues,
-      .tos = tos, .duplicate_connect = duplicate_connect,
-      .disable_sqflow = disable_sqflow,
-      .hdr_digest = hdr_digest,
-      .data_digest = data_digest,
-      .verbose = verbose,
-    };
 
     dev = nvme_ctrl_get_name($self);
-    if (dev && !duplicate_connect) {
+    if (dev && !cfg->duplicate_connect) {
       connect_err = 1;
       return;
     }
-    ret = nvmf_add_ctrl(h, $self, &cfg, disable_sqflow);
+    ret = nvmf_add_ctrl(h, $self, cfg, cfg->disable_sqflow);
     if (ret < 0) {
       connect_err = 2;
       return;
