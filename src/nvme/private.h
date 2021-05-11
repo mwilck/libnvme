@@ -58,8 +58,8 @@ struct nvme_ctrl {
 	struct list_node entry;
 	struct list_head paths;
 	struct list_head namespaces;
-
 	struct nvme_subsystem *subsystem;
+	int refcount;
 
 	int fd;
 	char *name;
@@ -89,6 +89,7 @@ struct nvme_subsystem {
 	struct list_head ctrls;
 	struct list_head namespaces;
 	struct nvme_host *host;
+	int refcount;
 
 	char *name;
 	char *sysfs_dir;
@@ -102,6 +103,7 @@ struct nvme_host {
 	struct list_node entry;
 	struct list_head subsystems;
 	struct nvme_root *root;
+	int refcount;
 
 	char *hostnqn;
 	char *hostid;
@@ -109,6 +111,7 @@ struct nvme_host {
 
 struct nvme_root {
 	struct list_head hosts;
+	int refcount;
 	char *config_file;
 	bool modified;
 };
