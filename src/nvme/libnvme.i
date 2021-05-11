@@ -220,11 +220,25 @@ struct nvme_ctrl {
   %immutable traddr;
   %immutable host_traddr;
   %immutable trsvcid;
+  %immutable address;
+  %immutable firmware;
+  %immutable model;
+  %immutable numa_node;
+  %immutable queue_count;
+  %immutable serial;
+  %immutable sqsize;
   char *transport;
   char *subsysnqn;
   char *traddr;
   char *host_traddr;
   char *trsvcid;
+  char *address;
+  char *firmware;
+  char *model;
+  char *numa_node;
+  char *queue_count;
+  char *serial;
+  char *sqsize;
 };
 
 struct nvme_ns {
