@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 /*
  * This file is part of libnvme.
- * Copyright (c) 2020 Western Digital Corporation or its affiliates.
+ * Copyright (c) 2021 SUSE Software Solutions
  *
- * Authors: Keith Busch <keith.busch@wdc.com>
- * 	    Chaitanya Kulkarni <chaitanya.kulkarni@wdc.com>
+ * Authors: Hannes Reinecke <hare@suse.de>
  */
 
 %module libnvme
