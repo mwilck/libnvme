@@ -32,6 +32,7 @@
 #include "fabrics.h"
 #include "ioctl.h"
 #include "util.h"
+#include "log.h"
 
 #define NVMF_HOSTID_SIZE	37
 
@@ -225,17 +226,24 @@ static int __nvmf_add_ctrl(const char *argstr)
 	char buf[0x1000], *options, *p;
 
 	fd = open(nvmf_dev, O_RDWR);
-	if (fd < 0)
+	if (fd < 0) {
+		nvme_msg(LOG_ERR, "Failed to open %s: %s\n",
+			 nvmf_dev, strerror(errno));
 		return -1;
+	}
 
 	ret = write(fd, argstr, len);
 	if (ret != len) {
+		nvme_msg(LOG_NOTICE, "Failed to write to %s: %s\n",
+			 nvmf_dev, strerror(errno));
 		ret = -1;
 		goto out_close;
 	}
 
 	len = read(fd, buf, sizeof(buf));
 	if (len < 0) {
+		nvme_msg(LOG_ERR, "Failed to read from %s: %s\n",
+			 nvmf_dev, strerror(errno));
 		ret = -1;
 		goto out_close;
 	}
@@ -249,6 +257,7 @@ static int __nvmf_add_ctrl(const char *argstr)
 			goto out_close;
 	}
 
+	nvme_msg(LOG_ERR, "Failed to parse ctrl info for \"%s\"\n", argstr);
 	errno = EINVAL;
 	ret = -1;
 out_close:
