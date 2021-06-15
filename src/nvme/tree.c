@@ -23,6 +23,7 @@
 #include "filters.h"
 #include "util.h"
 #include "fabrics.h"
+#include "log.h"
 
 /* XXX: Make a place for private declarations */
 extern int nvme_set_attr(const char *dir, const char *attr, const char *value);
@@ -714,9 +715,12 @@ int nvme_ctrl_disconnect(nvme_ctrl_t c)
 
 	ret = nvme_set_attr(nvme_ctrl_get_sysfs_dir(c),
 			    "delete_controller", "1");
-	if (ret < 0)
+	if (ret < 0) {
+		nvme_msg(LOG_ERR, "failed to disconnect %s: %s\n",
+			 c->name, strerror(errno));
 		return ret;
-
+	}
+	nvme_msg(LOG_DEBUG, "disconnected %s\n", c->name);
 	if (c->fd >= 0) {
 		close(c->fd);
 		c->fd = -1;

@@ -190,6 +190,21 @@ static int build_options(nvme_ctrl_t c, char **argstr,
 			 const struct nvme_fabrics_config *cfg)
 {
 	const char *transport = nvme_ctrl_get_transport(c);
+	const char *hostnqn, *hostid;
+
+	if (!transport) {
+		nvme_msg(LOG_ERR, "need a transport (-t) argument\n");
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (strncmp(transport, "loop", 4)) {
+		if (!nvme_ctrl_get_traddr(c)) {
+			nvme_msg(LOG_ERR, "need a address (-a) argument\n");
+			errno = EINVAL;
+			return -1;
+		}
+	}
 
 	/* always specify nqn as first arg - this will init the string */
 	if (asprintf(argstr, "nqn=%s",
@@ -198,7 +213,8 @@ static int build_options(nvme_ctrl_t c, char **argstr,
 		return -1;
 	}
 
-
+	hostnqn = nvme_ctrl_get_hostnqn(c);
+	hostid = nvme_ctrl_get_hostid(c);
 	if (add_argument(argstr, "transport", transport) ||
 	    add_argument(argstr, "traddr",
 			 nvme_ctrl_get_traddr(c)) ||
@@ -206,10 +222,8 @@ static int build_options(nvme_ctrl_t c, char **argstr,
 			 nvme_ctrl_get_host_traddr(c)) ||
 	    add_argument(argstr, "trsvcid",
 			 nvme_ctrl_get_trsvcid(c)) ||
-	    add_argument(argstr, "hostnqn",
-			 nvme_ctrl_get_hostnqn(c)) ||
-	    add_argument(argstr, "hostid",
-			 nvme_ctrl_get_hostid(c)) ||
+	    (hostnqn && add_argument(argstr, "hostnqn", hostnqn)) ||
+	    (hostid && add_argument(argstr, "hostid", hostid)) ||
 	    add_int_argument(argstr, "nr_write_queues",
 			     cfg->nr_write_queues, false) ||
 	    add_int_argument(argstr, "nr_poll_queues",
@@ -253,6 +267,7 @@ static int __nvmf_add_ctrl(const char *argstr)
 		return -1;
 	}
 
+	nvme_msg(LOG_DEBUG, "add ctrl args '%s'\n", argstr);
 	ret = write(fd, argstr, len);
 	if (ret != len) {
 		nvme_msg(LOG_NOTICE, "Failed to write to %s: %s\n",
@@ -268,7 +283,7 @@ static int __nvmf_add_ctrl(const char *argstr)
 		ret = -1;
 		goto out_close;
 	}
-
+	nvme_msg(LOG_DEBUG, "add ctrl response '%s'\n", buf);
 	buf[len] = '\0';
 	options = buf;
 	while ((p = strsep(&options, ",\n")) != NULL) {
@@ -338,6 +353,8 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 	case NVME_NQN_NVME:
 		break;
 	default:
+		nvme_msg(LOG_ERR, "skipping unsupported subtype %d\n",
+			 e->subtype);
 		errno = EINVAL;
 		return NULL;
 	}
@@ -354,6 +371,8 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 			trsvcid = e->trsvcid;
 			break;
 		default:
+			nvme_msg(LOG_ERR, "skipping unsupported adrfam %d\n",
+				 e->adrfam);
 			errno = EINVAL;
 			return NULL;
 		}
@@ -365,10 +384,17 @@ nvme_ctrl_t nvmf_connect_disc_entry(nvme_host_t h,
 			traddr = e->traddr;
 			trsvcid = NULL;
 			break;
+		default:
+			nvme_msg(LOG_ERR, "skipping unsupported adrfam %d\n",
+				 e->adrfam);
+			errno = EINVAL;
+			return NULL;
 		}
 	case NVMF_TRTYPE_LOOP:
 		break;
 	default:
+		nvme_msg(LOG_ERR, "skipping unsupported transport %d\n",
+			 e->trtype);
 		errno = EINVAL;
 		return NULL;
 	}
@@ -417,6 +443,8 @@ int nvmf_get_discovery_log(nvme_ctrl_t c, struct nvmf_discovery_log **logp,
 	hdr = sizeof(struct nvmf_discovery_log);
 	log = malloc(hdr);
 	if (!log) {
+		nvme_msg(LOG_ERR,
+			 "could not allocate memory for discovery log header\n");
 		errno = ENOMEM;
 		return -1;
 	}
@@ -441,6 +469,8 @@ int nvmf_get_discovery_log(nvme_ctrl_t c, struct nvmf_discovery_log **logp,
 		free(log);
 		log = malloc(size);
 		if (!log) {
+			nvme_msg(LOG_ERR,
+				 "could not alloc memory for discovery log page\n");
 			errno = ENOMEM;
 			return -1;
 		}
